@@ -30,6 +30,7 @@ struct filestr
 
 vector<filestr> filesarr;
 
+// Print all the files
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
 
 void printfiles()
@@ -70,26 +71,10 @@ string getPermissions(struct stat &_sb)
     return permission;
 }
 
-void create_file()
+void getAllFiles(string &path)
 {
-    int filediscriptor;
-    string filename;
-
-    cin >> filename;
-
-    filediscriptor = creat(filename.c_str(), S_IRWXU | S_IRGRP | S_IROTH);
-
-    if (filediscriptor == -1)
-        cout << "Failed to create the file" << endl;
-    else
-        cout << "File created" << endl;
-}
-
-int main()
-{
-
     DIR *curr_dir;
-    string path = "/mnt/LINUXDATA/bhanujggandhi/Learning/bashlearn/";
+    filesarr.clear();
     curr_dir = opendir(path.c_str());
 
     if (curr_dir == NULL)
@@ -105,9 +90,7 @@ int main()
             curr_path = path + curr_path;
 
             if (stat(curr_path.c_str(), &sb))
-            {
-                cout << "Cannot get permission" << endl;
-            }
+                cout << "Permission Denied" << endl;
 
             currfile.permission = getPermissions(sb);
             currfile.user = getpwuid(sb.st_uid)->pw_name;
@@ -126,6 +109,28 @@ int main()
         sort(filesarr.begin(), filesarr.end(), &files_sort);
         printfiles();
     }
+}
+
+// Functional Utilities
+void create_file()
+{
+    int filediscriptor;
+    string filename;
+
+    cin >> filename;
+
+    filediscriptor = creat(filename.c_str(), S_IRWXU | S_IRGRP | S_IROTH);
+
+    if (filediscriptor == -1)
+        cout << "Failed to create the file" << endl;
+    else
+        cout << "File created" << endl;
+}
+
+int main()
+{
+    string path = "/mnt/LINUXDATA/bhanujggandhi/Learning/bashlearn/";
+    getAllFiles(path);
 
     return 0;
 }
