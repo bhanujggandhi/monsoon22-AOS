@@ -1,7 +1,58 @@
 #include <bits/stdc++.h>
 #include <fcntl.h>
 
+// opendir, readdir
+#include <dirent.h>
+
+// To get file/folder information
+#include <sys/stat.h>
+#include <pwd.h>
+#include <grp.h>
+
 using namespace std;
+
+struct dirent *dir;
+struct stat sb;
+struct filestr
+{
+    string permission;
+    string user;
+    string group;
+    string size;
+    string name;
+    string path;
+};
+
+vector<filestr> filesarr;
+
+bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
+
+void printfiles()
+{
+    for (int i = 0; i < filesarr.size(); i++)
+    {
+        cout << filesarr[i].permission << "    " << filesarr[i].user << "    " << filesarr[i].group << "    " << filesarr[i].size << "    " << filesarr[i].name << endl;
+    }
+}
+
+string getPermissions(struct stat &_sb)
+{
+    string permission = "";
+    mode_t perm = _sb.st_mode;
+
+    permission += (S_ISDIR(perm)) ? 'd' : '-';
+    permission += (perm & S_IRUSR) ? 'r' : '-';
+    permission += (perm & S_IWUSR) ? 'w' : '-';
+    permission += (perm & S_IXUSR) ? 'x' : '-';
+    permission += (perm & S_IRGRP) ? 'r' : '-';
+    permission += (perm & S_IWGRP) ? 'w' : '-';
+    permission += (perm & S_IXGRP) ? 'x' : '-';
+    permission += (perm & S_IROTH) ? 'r' : '-';
+    permission += (perm & S_IWOTH) ? 'w' : '-';
+    permission += (perm & S_IXOTH) ? 'x' : '-';
+
+    return permission;
+}
 
 void create_file()
 {
@@ -20,6 +71,41 @@ void create_file()
 
 int main()
 {
+
+    DIR *curr_dir;
+    string path = "/mnt/LINUXDATA/bhanujggandhi/Learning/bashlearn/";
+    curr_dir = opendir(path.c_str());
+
+    if (curr_dir == NULL)
+    {
+        cout << "Directory could not be opened" << endl;
+    }
+    else
+    {
+        for (dir = readdir(curr_dir); dir != NULL; dir = readdir(curr_dir))
+        {
+            struct filestr currfile;
+            string curr_path = dir->d_name;
+            curr_path = path + curr_path;
+
+            if (stat(curr_path.c_str(), &sb))
+            {
+                cout << "Cannot get permission" << endl;
+            }
+
+            currfile.permission = getPermissions(sb);
+            currfile.user = getpwuid(sb.st_uid)->pw_name;
+            currfile.group = getgrgid(sb.st_gid)->gr_name;
+            currfile.size = (sb.st_size > 1024 ? to_string(sb.st_size / 1024) + "KB" : to_string(sb.st_size) + "B");
+            currfile.name = dir->d_name;
+            currfile.path = curr_path;
+
+            filesarr.push_back(currfile);
+        }
+
+        sort(filesarr.begin(), filesarr.end(), &files_sort);
+        printfiles();
+    }
 
     return 0;
 }
