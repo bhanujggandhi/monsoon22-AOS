@@ -9,6 +9,10 @@
 #include <pwd.h>
 #include <grp.h>
 
+// Formatting
+#include <iomanip>
+#include <time.h>
+
 using namespace std;
 
 struct dirent *dir;
@@ -21,6 +25,7 @@ struct filestr
     string size;
     string name;
     string path;
+    string lastmodified;
 };
 
 vector<filestr> filesarr;
@@ -29,9 +34,20 @@ bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.
 
 void printfiles()
 {
+    int pw = 13;
+    int ugw = 18;
+    int lmw = 20;
+    int sw = 8;
+    char f = ' ';
     for (int i = 0; i < filesarr.size(); i++)
     {
-        cout << filesarr[i].permission << "    " << filesarr[i].user << "    " << filesarr[i].group << "    " << filesarr[i].size << "    " << filesarr[i].name << endl;
+        cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
+        cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
+        cout << left << setw(ugw) << setfill(f) << filesarr[i].group;
+        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
+        cout << left << setw(sw) << setfill(f) << filesarr[i].size;
+        cout << left << setw(pw) << setfill(f) << filesarr[i].name;
+        cout << endl;
     }
 }
 
@@ -96,9 +112,13 @@ int main()
             currfile.permission = getPermissions(sb);
             currfile.user = getpwuid(sb.st_uid)->pw_name;
             currfile.group = getgrgid(sb.st_gid)->gr_name;
-            currfile.size = (sb.st_size > 1024 ? to_string(sb.st_size / 1024) + "KB" : to_string(sb.st_size) + "B");
+            currfile.size = (sb.st_size >= 1024 ? to_string(sb.st_size / 1024) + "K" : to_string(sb.st_size) + "B");
             currfile.name = dir->d_name;
             currfile.path = curr_path;
+            char t[50] = "";
+            strftime(t, 50, "%b %d %H:%M %Y", localtime(&sb.st_mtime));
+            string ti(t);
+            currfile.lastmodified = ti;
 
             filesarr.push_back(currfile);
         }
