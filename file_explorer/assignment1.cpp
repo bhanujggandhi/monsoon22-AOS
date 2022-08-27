@@ -135,7 +135,11 @@ void getAllFiles(string path)
 
 void change_dir(const string path)
 {
-    chdir(path.c_str());
+    if (chdir(path.c_str()))
+    {
+        cout << "Unable to change the Directory" << endl;
+        return;
+    }
     getcurrdir();
     getAllFiles(cwd);
 }
