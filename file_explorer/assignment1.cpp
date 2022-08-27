@@ -79,7 +79,7 @@ string getPermissions(struct stat &_sb)
     return permission;
 }
 
-void getAllFiles(string &path)
+void getAllFiles(string path)
 {
     clear_screen();
     DIR *curr_dir;
@@ -184,16 +184,11 @@ void create_file(string &path)
 
 void delete_file(string &path)
 {
-    string filename;
-    cin >> filename;
-
-    filename = path + filename;
-
-    cout << "Deleting: " << filename << endl;
+    cout << "Deleting: " << path << endl;
     int n;
     cin >> n;
 
-    if (!remove(filename.c_str()))
+    if (!remove(path.c_str()))
     {
         cout << "File deleted successfully" << endl;
         getAllFiles(path);
@@ -231,6 +226,18 @@ void copy_file(const string source, const string destination)
     cout << "File copied successfully" << endl;
     close(d);
     close(s);
+}
+
+void rename_file(const string path, const string newpath)
+{
+    if (rename(path.c_str(), newpath.c_str()) == 0)
+    {
+        cout << "File renamed successfully" << endl;
+    }
+    else
+    {
+        cout << "Rename File: Operation failed" << endl;
+    }
 }
 
 int main()
