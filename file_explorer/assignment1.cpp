@@ -3,13 +3,13 @@
 // opendir, readdir
 #include <sys/dir.h>
 
+// Create file
+#include <fcntl.h>
+
 // To get file/folder information
 #include <sys/stat.h>
 #include <pwd.h>
 #include <grp.h>
-
-// Create file
-#include <fcntl.h>
 
 // Formatting
 #include <iomanip>
@@ -17,6 +17,7 @@
 
 using namespace std;
 
+// ------------- Data Structures---------------
 struct dirent *dir;
 struct stat sb;
 struct filestr
@@ -32,7 +33,7 @@ struct filestr
 
 vector<filestr> filesarr;
 
-// Print all the files
+//-------------- Directory Utility Functions ------------------------
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
 
 void clear_screen()
@@ -99,24 +100,28 @@ void getAllFiles(string &path)
 
             if (stat(curr_path.c_str(), &sb))
                 cout << "Permission Denied" << endl;
+            else
+            {
 
-            currfile.permission = getPermissions(sb);
-            currfile.user = getpwuid(sb.st_uid)->pw_name;
-            currfile.group = getgrgid(sb.st_gid)->gr_name;
-            currfile.size = (sb.st_size >= 1024 ? to_string(sb.st_size / 1024) + "K" : to_string(sb.st_size) + "B");
-            currfile.name = dir->d_name;
-            currfile.path = curr_path;
-            char t[50] = "";
-            strftime(t, 50, "%b %d %H:%M %Y", localtime(&sb.st_mtime));
-            string ti(t);
-            currfile.lastmodified = ti;
+                currfile.permission = getPermissions(sb);
+                currfile.user = getpwuid(sb.st_uid)->pw_name;
+                currfile.group = getgrgid(sb.st_gid)->gr_name;
+                currfile.size = (sb.st_size >= 1024 ? to_string(sb.st_size / 1024) + "K" : to_string(sb.st_size) + "B");
+                currfile.name = dir->d_name;
+                currfile.path = curr_path;
+                char t[50] = "";
+                strftime(t, 50, "%b %d %H:%M %Y", localtime(&sb.st_mtime));
+                string ti(t);
+                currfile.lastmodified = ti;
 
-            filesarr.push_back(currfile);
+                filesarr.push_back(currfile);
+            }
         }
 
         sort(filesarr.begin(), filesarr.end(), &files_sort);
         printfiles();
     }
+    closedir(curr_dir);
 }
 
 void change_dir(string &path)
@@ -160,7 +165,7 @@ void remove_dir(string &path)
         cout << "Failed to delete dir" << endl;
 }
 
-// Functional Utilities
+//------------------ File Utilities ------------------------
 void create_file(string &path)
 {
     string filename;
