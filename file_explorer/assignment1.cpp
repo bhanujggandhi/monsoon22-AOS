@@ -124,6 +124,22 @@ void change_dir(string &path)
     getAllFiles(path);
 }
 
+void make_dir(string &path)
+{
+    string foldername;
+    cin >> foldername;
+
+    foldername = path + foldername;
+
+    if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IRWXO))
+    {
+        cout << "Folder created successfully" << endl;
+        getAllFiles(path);
+    }
+    else
+        cout << "Failed to create dir" << endl;
+}
+
 // Functional Utilities
 void create_file(string &path)
 {
@@ -164,9 +180,11 @@ int main()
     string path = "./";
     getAllFiles(path);
 
-    string newpath;
-    cin >> newpath;
-    change_dir(newpath);
+    // string newpath;
+    // cin >> newpath;
+    // change_dir(newpath);
+
+    make_dir(path);
 
     return 0;
 }
