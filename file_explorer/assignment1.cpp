@@ -119,6 +119,11 @@ void getAllFiles(string &path)
     }
 }
 
+void change_dir(string &path)
+{
+    getAllFiles(path);
+}
+
 // Functional Utilities
 void create_file(string &path)
 {
@@ -158,6 +163,10 @@ int main()
 {
     string path = "./";
     getAllFiles(path);
+
+    string newpath;
+    cin >> newpath;
+    change_dir(newpath);
 
     return 0;
 }
