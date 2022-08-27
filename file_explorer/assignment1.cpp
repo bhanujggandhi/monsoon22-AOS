@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 
 // opendir, readdir
-#include <dirent.h>
+#include <sys/dir.h>
 
 // To get file/folder information
 #include <sys/stat.h>
@@ -34,6 +34,11 @@ vector<filestr> filesarr;
 
 // Print all the files
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
+
+void clear_screen()
+{
+    cout << "\033[2J\033[H";
+}
 
 void printfiles()
 {
@@ -75,6 +80,7 @@ string getPermissions(struct stat &_sb)
 
 void getAllFiles(string &path)
 {
+    clear_screen();
     DIR *curr_dir;
     filesarr.clear();
     curr_dir = opendir(path.c_str());
@@ -117,7 +123,6 @@ void getAllFiles(string &path)
 void create_file(string &path)
 {
     string filename;
-
     cin >> filename;
 
     filename = path + filename;
@@ -125,12 +130,33 @@ void create_file(string &path)
     if (creat(filename.c_str(), S_IRWXU | S_IRGRP | S_IROTH) == -1)
         cout << "Failed to create the file" << endl;
     else
+    {
         cout << "File created" << endl;
+        getAllFiles(path);
+    }
+}
+
+void delete_file(string &path)
+{
+    string filename;
+    cin >> filename;
+
+    filename = path + filename;
+
+    cout << "Deleting:   " << filename << endl;
+
+    if (!remove(filename.c_str()))
+    {
+        cout << "File deleted successfully" << endl;
+        getAllFiles(path);
+    }
+    else
+        cout << "Failed to delete the file" << endl;
 }
 
 int main()
 {
-    string path = "/mnt/LINUXDATA/bhanujggandhi/Learning/bashlearn/";
+    string path = "./";
     getAllFiles(path);
 
     return 0;
