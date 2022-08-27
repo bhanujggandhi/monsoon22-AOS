@@ -1,5 +1,4 @@
 #include <bits/stdc++.h>
-#include <fcntl.h>
 
 // opendir, readdir
 #include <dirent.h>
@@ -8,6 +7,9 @@
 #include <sys/stat.h>
 #include <pwd.h>
 #include <grp.h>
+
+// Create file
+#include <fcntl.h>
 
 // Formatting
 #include <iomanip>
@@ -45,8 +47,8 @@ void printfiles()
         cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
         cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
         cout << left << setw(ugw) << setfill(f) << filesarr[i].group;
-        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
         cout << left << setw(sw) << setfill(f) << filesarr[i].size;
+        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
         cout << left << setw(pw) << setfill(f) << filesarr[i].name;
         cout << endl;
     }
@@ -112,16 +114,15 @@ void getAllFiles(string &path)
 }
 
 // Functional Utilities
-void create_file()
+void create_file(string &path)
 {
-    int filediscriptor;
     string filename;
 
     cin >> filename;
 
-    filediscriptor = creat(filename.c_str(), S_IRWXU | S_IRGRP | S_IROTH);
+    filename = path + filename;
 
-    if (filediscriptor == -1)
+    if (creat(filename.c_str(), S_IRWXU | S_IRGRP | S_IROTH) == -1)
         cout << "Failed to create the file" << endl;
     else
         cout << "File created" << endl;
