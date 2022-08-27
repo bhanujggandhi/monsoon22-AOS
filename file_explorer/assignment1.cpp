@@ -131,7 +131,7 @@ void make_dir(string &path)
 
     foldername = path + foldername;
 
-    if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IRWXO))
+    if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
         cout << "Folder created successfully" << endl;
         getAllFiles(path);
@@ -146,6 +146,10 @@ void remove_dir(string &path)
     cin >> foldername;
 
     foldername = path + foldername;
+
+    cout << "Deleting: " << foldername << endl;
+    int n;
+    cin >> n;
 
     if (!rmdir(foldername.c_str()))
     {
@@ -164,7 +168,7 @@ void create_file(string &path)
 
     filename = path + filename;
 
-    if (creat(filename.c_str(), S_IRWXU | S_IRGRP | S_IROTH) == -1)
+    if (creat(filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH) == -1)
         cout << "Failed to create the file" << endl;
     else
     {
@@ -180,7 +184,9 @@ void delete_file(string &path)
 
     filename = path + filename;
 
-    cout << "Deleting:   " << filename << endl;
+    cout << "Deleting: " << filename << endl;
+    int n;
+    cin >> n;
 
     if (!remove(filename.c_str()))
     {
@@ -202,6 +208,7 @@ int main()
 
     // make_dir(path);
     // remove_dir(path);
+    // delete_file(path);
 
     return 0;
 }
