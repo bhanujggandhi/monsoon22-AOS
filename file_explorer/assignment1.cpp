@@ -32,8 +32,17 @@ struct filestr
 };
 
 vector<filestr> filesarr;
+string cwd;
 
 //-------------- Directory Utility Functions ------------------------
+void getcurrdir()
+{
+    char buf[100];
+    cwd = getcwd(buf, 100);
+    cwd += "/";
+    cout << cwd << endl;
+}
+
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
 
 void clear_screen()
@@ -124,9 +133,11 @@ void getAllFiles(string path)
     closedir(curr_dir);
 }
 
-void change_dir(string &path)
+void change_dir(const string path)
 {
-    getAllFiles(path);
+    chdir(path.c_str());
+    getcurrdir();
+    getAllFiles(cwd);
 }
 
 void make_dir(string &path)
@@ -242,8 +253,10 @@ void rename_file(const string path, const string newpath)
 
 int main()
 {
-    string path = "./";
-    getAllFiles(path);
+    getcurrdir();
+    getAllFiles(cwd);
+
+    change_dir("../../");
 
     // string src = "./hello.txt";
     // string dest = "../hello1/hellocop.txt";
