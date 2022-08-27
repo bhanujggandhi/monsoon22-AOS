@@ -140,6 +140,22 @@ void make_dir(string &path)
         cout << "Failed to create dir" << endl;
 }
 
+void remove_dir(string &path)
+{
+    string foldername;
+    cin >> foldername;
+
+    foldername = path + foldername;
+
+    if (!rmdir(foldername.c_str()))
+    {
+        cout << "Folder deleted successfully" << endl;
+        getAllFiles(path);
+    }
+    else
+        cout << "Failed to delete dir" << endl;
+}
+
 // Functional Utilities
 void create_file(string &path)
 {
@@ -184,7 +200,8 @@ int main()
     // cin >> newpath;
     // change_dir(newpath);
 
-    make_dir(path);
+    // make_dir(path);
+    // remove_dir(path);
 
     return 0;
 }
