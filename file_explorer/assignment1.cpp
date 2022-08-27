@@ -202,10 +202,49 @@ void delete_file(string &path)
         cout << "Failed to delete the file" << endl;
 }
 
+void copy_file(const string source, const string destination)
+{
+    int s = open(source.c_str(), O_RDONLY);
+    int d;
+    char buf;
+    if (s == -1)
+    {
+        cout << "Source file cannot be opened" << endl;
+        close(s);
+        return;
+    }
+    d = open(destination.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    if (d == -1)
+    {
+        cout << "Destination file cannot be opened" << endl;
+        close(d);
+        close(s);
+        return;
+    }
+
+    while (read(s, &buf, 1))
+    {
+        write(d, &buf, 1);
+    }
+
+    cout << "File copied successfully" << endl;
+    close(d);
+    close(s);
+}
+
 int main()
 {
     string path = "./";
     getAllFiles(path);
+
+    // string src = "./hello.txt";
+    // string dest = "../hello1/hellocop.txt";
+    // string p = "../hello1/";
+    // delete_file(p);
+    // copy_file(src, dest);
+
+    // change_dir(p);
 
     // string newpath;
     // cin >> newpath;
