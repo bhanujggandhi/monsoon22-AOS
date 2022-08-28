@@ -382,18 +382,18 @@ void enter()
 
     if (f.permission[0] == 'd')
     {
-        if (f.path.size() == 1 and f.path[0] == '.')
+        if (f.path == ".")
         {
             return;
         }
-        else if (f.path.size() == 2 and f.path == "..")
+        else if (f.path == "..")
         {
-            change_dir(splittoprev(cwd, '/'));
-            getAllFiles(cwd);
+            goto_parent_dir();
         }
         else
         {
-            goto_parent_dir();
+            change_dir(f.path + "/");
+            getAllFiles(cwd);
         }
     }
     else
