@@ -29,6 +29,7 @@ struct editorConfig
     int screencols;
     struct termios orig_termios;
     int cx, cy;
+    int rowoffset;
 };
 struct editorConfig E;
 
@@ -81,7 +82,7 @@ void change_statusbar(string s, int bottom)
 {
     move_cursor(E.screenrows - bottom, 1);
     cout << "\033[K";
-    cout << s;
+    cout << "\033[1;7m" << s << "\033[0m";
 }
 
 string splittoprev(string str, char del)
@@ -138,7 +139,11 @@ void printfiles()
     int ugw = 18;
     int lmw = 20;
     int sw = 8;
+    int nw = 13;
     char f = ' ';
+    string directorytext = "\033[1;34m";
+    string exectext = "\033[1;32m";
+    string normaltext = "\033[0m";
 
     int sz = filesarr.size();
     int end = min(sz, E.screenrows);
@@ -150,14 +155,19 @@ void printfiles()
         cout << left << setw(ugw) << setfill(f) << filesarr[i].group;
         cout << left << setw(sw) << setfill(f) << filesarr[i].size;
         cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
-        cout << left << setw(pw) << setfill(f) << filesarr[i].name;
+        if (filesarr[i].permission[0] == 'd')
+            cout << left << setfill(f) << directorytext << filesarr[i].name << normaltext;
+        else if (filesarr[i].permission[3] == 'x')
+            cout << left << setfill(f) << exectext << filesarr[i].name << normaltext;
+        else
+            cout << left << setfill(f) << filesarr[i].name;
         cout << "\r\n";
     }
 
     E.cx = 1;
     E.cy = 0;
-    change_statusbar("Normal Mode", 2);
-    change_statusbar(cwd, 1);
+    change_statusbar("--Normal Mode--  " + cwd, 1);
+    // change_statusbar(cwd, 1);
     move_cursor(E.cx, 1);
 }
 
