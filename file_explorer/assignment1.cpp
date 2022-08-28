@@ -18,6 +18,7 @@
 // Formatting
 #include <iomanip>
 #include <time.h>
+#include <signal.h>
 
 using namespace std;
 
@@ -104,7 +105,7 @@ string splittoprev(string str, char del)
     string finalpth = "";
     for (int i = 0; i < pth.size() - 2; i++)
     {
-        finalpth = finalpth + pth[i] + "/";
+        finalpth = finalpth + pth[i];
     }
 
     return finalpth;
@@ -364,7 +365,7 @@ void enableNormalMode()
     raw.c_iflag = raw.c_iflag & ~(IXON | ICRNL);
 
     // To disable enter as terminal default
-    raw.c_oflag &= ~(OPOST);
+    // raw.c_oflag &= ~(OPOST);
 
     // ISIG for ctrl c or ctrl z
     // IEXTEN for ctrl v
@@ -411,7 +412,7 @@ void enter()
         else
         {
             backstk.push(cwd);
-            change_dir(f.path + "/");
+            change_dir(f.path);
             getAllFiles(cwd);
         }
     }
@@ -433,7 +434,7 @@ void goback()
     else
     {
         forwardstk.push(cwd);
-        change_dir(backstk.top() + "/");
+        change_dir(backstk.top());
         backstk.pop();
         getAllFiles(cwd);
     }
@@ -446,7 +447,7 @@ void goforward()
     else
     {
         backstk.push(cwd);
-        change_dir(forwardstk.top() + "/");
+        change_dir(forwardstk.top());
         forwardstk.pop();
         getAllFiles(cwd);
     }
@@ -455,7 +456,12 @@ void goforward()
 void goHome()
 {
     backstk.push(cwd);
-    change_dir(HOME + "/");
+    change_dir(HOME);
+    getAllFiles(cwd);
+}
+
+void resizehandler(int t)
+{
     getAllFiles(cwd);
 }
 
@@ -470,6 +476,7 @@ int main()
     getHomeDir();
     getcurrdir();
     getAllFiles(cwd);
+    signal(SIGWINCH, resizehandler);
 
     enableNormalMode();
     char ch;
