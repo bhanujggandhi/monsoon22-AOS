@@ -79,7 +79,7 @@ void change_statusbar(string s)
     cout << s;
 }
 
-string split(string str, char del)
+string splittoprev(string str, char del)
 {
     string temp = "";
     vector<string> pth;
@@ -370,6 +370,12 @@ void downkey()
         move_cursor(++E.cx, 1);
 }
 
+void goto_parent_dir()
+{
+    change_dir(splittoprev(cwd, '/'));
+    getAllFiles(cwd);
+}
+
 void enter()
 {
     struct filestr f = filesarr[E.cx - 1];
@@ -382,13 +388,12 @@ void enter()
         }
         else if (f.path.size() == 2 and f.path == "..")
         {
-            change_dir(split(f.path, '/'));
+            change_dir(splittoprev(cwd, '/'));
             getAllFiles(cwd);
         }
         else
         {
-            change_dir(f.path + "/");
-            getAllFiles(cwd);
+            goto_parent_dir();
         }
     }
     else
@@ -433,6 +438,9 @@ int main()
             break;
         case 13:
             enter();
+            break;
+        case 127:
+            goto_parent_dir();
             break;
         default:
             // cout << ch << "  " << t;
