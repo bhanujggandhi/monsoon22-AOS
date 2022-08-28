@@ -48,6 +48,11 @@ vector<filestr> filesarr;
 string cwd;
 
 // -------------------Normal Mode----------------
+void clear_screen()
+{
+    cout << "\033[2J\033[H";
+}
+
 void enableNormalMode()
 {
 
@@ -111,6 +116,12 @@ void downkey()
         move_cursor(++E.cx, 1);
 }
 
+void exitfunc()
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
+    clear_screen();
+}
+
 //-------------- Directory Utility Functions ------------------------
 void getcurrdir()
 {
@@ -120,11 +131,6 @@ void getcurrdir()
 }
 
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
-
-void clear_screen()
-{
-    cout << "\033[2J\033[H";
-}
 
 void printfiles()
 {
