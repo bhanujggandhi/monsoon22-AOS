@@ -393,7 +393,12 @@ void enter()
     }
     else
     {
-        cout << "opening";
+        int pid = fork();
+        if (pid == 0)
+        {
+            execl("/usr/bin/xdg-open", "xdg-open", f.path.c_str(), (char *)0);
+            exit(1);
+        }
     }
 }
 
