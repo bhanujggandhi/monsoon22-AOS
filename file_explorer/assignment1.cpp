@@ -392,10 +392,12 @@ void enter()
         }
         else if (f.path == "..")
         {
+            backstk.push(cwd);
             goto_parent_dir();
         }
         else
         {
+            backstk.push(cwd);
             change_dir(f.path + "/");
             getAllFiles(cwd);
         }
@@ -408,6 +410,32 @@ void enter()
             execl("/usr/bin/xdg-open", "xdg-open", f.path.c_str(), (char *)0);
             exit(1);
         }
+    }
+}
+
+void goback()
+{
+    if (backstk.empty())
+        return;
+    else
+    {
+        forwardstk.push(cwd);
+        change_dir(backstk.top() + "/");
+        backstk.pop();
+        getAllFiles(cwd);
+    }
+}
+
+void goforward()
+{
+    if (forwardstk.empty())
+        return;
+    else
+    {
+        backstk.push(cwd);
+        change_dir(forwardstk.top() + "/");
+        forwardstk.pop();
+        getAllFiles(cwd);
     }
 }
 
@@ -446,8 +474,14 @@ int main()
         case 127:
             goto_parent_dir();
             break;
+        case 67:
+            goforward();
+            break;
+        case 68:
+            goback();
+            break;
         default:
-            // cout << ch << "  " << t;
+            // cout << ch << "-" << t << "   ";
             break;
         }
     }
