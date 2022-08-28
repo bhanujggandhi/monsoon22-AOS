@@ -47,6 +47,9 @@ struct filestr
 vector<filestr> filesarr;
 string cwd;
 
+stack<string> backstk;
+stack<string> forwardstk;
+
 void clear_screen()
 {
     cout << "\033[2J\033[H";
@@ -72,9 +75,9 @@ void move_cursor(int row, int col)
     cout << "\033[" << row << ";" << col << "H";
 }
 
-void change_statusbar(string s)
+void change_statusbar(string s, int bottom)
 {
-    move_cursor(E.screenrows - 3, 1);
+    move_cursor(E.screenrows - bottom, 1);
     cout << "\033[K";
     cout << s;
 }
@@ -140,7 +143,8 @@ void printfiles()
 
     E.cx = 1;
     E.cy = 0;
-    change_statusbar("Normal Mode");
+    change_statusbar("Normal Mode", 2);
+    change_statusbar(cwd, 1);
     move_cursor(E.cx, 1);
 }
 
