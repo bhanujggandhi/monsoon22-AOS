@@ -146,7 +146,7 @@ void printfiles()
     string normaltext = "\033[0m";
 
     int sz = filesarr.size();
-    int end = min(sz, E.screenrows);
+    int end = min(sz, E.screenrows - 1);
 
     for (int i = 0; i < end; i++)
     {
@@ -393,7 +393,7 @@ void upkey()
 void downkey()
 {
     int sz = filesarr.size();
-    if (E.cx + 1 <= min(E.screenrows, sz))
+    if (E.cx + 1 <= min(E.screenrows - 2, sz))
         move_cursor(++E.cx, 1);
 }
 
