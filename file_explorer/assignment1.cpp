@@ -47,33 +47,9 @@ struct filestr
 vector<filestr> filesarr;
 string cwd;
 
-// -------------------Normal Mode----------------
 void clear_screen()
 {
     cout << "\033[2J\033[H";
-}
-
-void enableNormalMode()
-{
-
-    tcgetattr(STDIN_FILENO, &E.orig_termios);
-    // On pressing :
-    // atexit(disableRawMode);
-
-    struct termios raw = E.orig_termios;
-
-    // IXON for ctrl S or ctrl q
-    // ICRNL for ctrl m
-    raw.c_iflag = raw.c_iflag & ~(IXON | ICRNL);
-
-    // To disable enter as terminal default
-    raw.c_oflag &= ~(OPOST);
-
-    // ISIG for ctrl c or ctrl z
-    // IEXTEN for ctrl v
-    raw.c_lflag = raw.c_lflag & ~(ECHO | ICANON | ISIG | IEXTEN);
-
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
 int getWindowSize(int *rows, int *cols)
@@ -103,23 +79,31 @@ void change_statusbar(string s)
     cout << s;
 }
 
-void upkey()
+string split(string str, char del)
 {
-    if (E.cx - 1 > 0)
-        move_cursor(--E.cx, 1);
-}
+    string temp = "";
+    vector<string> pth;
 
-void downkey()
-{
-    int sz = filesarr.size();
-    if (E.cx + 1 <= min(E.screenrows, sz))
-        move_cursor(++E.cx, 1);
-}
+    for (int i = 0; i < str.size(); i++)
+    {
+        if (str[i] != del)
+            temp += str[i];
+        else
+        {
+            pth.push_back(temp);
+            temp = "";
+        }
+    }
 
-void exitfunc()
-{
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
-    clear_screen();
+    pth.push_back(temp);
+
+    string finalpth = "";
+    for (int i = 0; i < pth.size() - 2; i++)
+    {
+        finalpth = finalpth + pth[i] + "/";
+    }
+
+    return finalpth;
 }
 
 //-------------- Directory Utility Functions ------------------------
@@ -349,6 +333,76 @@ void rename_file(const string path, const string newpath)
     }
 }
 
+// -------------------Normal Mode----------------
+void enableNormalMode()
+{
+
+    tcgetattr(STDIN_FILENO, &E.orig_termios);
+    // On pressing :
+    // atexit(disableRawMode);
+
+    struct termios raw = E.orig_termios;
+
+    // IXON for ctrl S or ctrl q
+    // ICRNL for ctrl m
+    raw.c_iflag = raw.c_iflag & ~(IXON | ICRNL);
+
+    // To disable enter as terminal default
+    raw.c_oflag &= ~(OPOST);
+
+    // ISIG for ctrl c or ctrl z
+    // IEXTEN for ctrl v
+    raw.c_lflag = raw.c_lflag & ~(ECHO | ICANON | ISIG | IEXTEN);
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void upkey()
+{
+    if (E.cx - 1 > 0)
+        move_cursor(--E.cx, 1);
+}
+
+void downkey()
+{
+    int sz = filesarr.size();
+    if (E.cx + 1 <= min(E.screenrows, sz))
+        move_cursor(++E.cx, 1);
+}
+
+void enter()
+{
+    struct filestr f = filesarr[E.cx - 1];
+
+    if (f.permission[0] == 'd')
+    {
+        if (f.path.size() == 1 and f.path[0] == '.')
+        {
+            return;
+        }
+        else if (f.path.size() == 2 and f.path == "..")
+        {
+            change_dir(split(f.path, '/'));
+            getAllFiles(cwd);
+        }
+        else
+        {
+            change_dir(f.path + "/");
+            getAllFiles(cwd);
+        }
+    }
+    else
+    {
+        cout << "opening";
+    }
+}
+
+void exitfunc()
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
+    clear_screen();
+}
+
 int main()
 {
     getcurrdir();
@@ -372,7 +426,11 @@ int main()
         case 66:
             downkey();
             break;
+        case 13:
+            enter();
+            break;
         default:
+            // cout << ch << "  " << t;
             break;
         }
     }
