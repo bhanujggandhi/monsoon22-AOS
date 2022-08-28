@@ -46,6 +46,7 @@ struct filestr
 
 vector<filestr> filesarr;
 string cwd;
+string HOME;
 
 stack<string> backstk;
 stack<string> forwardstk;
@@ -115,6 +116,17 @@ void getcurrdir()
     char buf[100];
     cwd = getcwd(buf, 100);
     cwd += "/";
+}
+
+void getHomeDir()
+{
+    const char *h;
+    if ((h = getenv("HOME")) == NULL)
+    {
+        h = getpwuid(getuid())->pw_dir;
+    }
+
+    HOME = h;
 }
 
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
@@ -376,6 +388,7 @@ void downkey()
 
 void goto_parent_dir()
 {
+    backstk.push(cwd);
     change_dir(splittoprev(cwd, '/'));
     getAllFiles(cwd);
 }
@@ -439,6 +452,13 @@ void goforward()
     }
 }
 
+void goHome()
+{
+    backstk.push(cwd);
+    change_dir(HOME + "/");
+    getAllFiles(cwd);
+}
+
 void exitfunc()
 {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
@@ -447,6 +467,7 @@ void exitfunc()
 
 int main()
 {
+    getHomeDir();
     getcurrdir();
     getAllFiles(cwd);
 
@@ -480,8 +501,10 @@ int main()
         case 68:
             goback();
             break;
+        case 104:
+            goHome();
+            break;
         default:
-            // cout << ch << "-" << t << "   ";
             break;
         }
     }
