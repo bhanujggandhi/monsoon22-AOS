@@ -1,5 +1,9 @@
 #include <bits/stdc++.h>
 
+// Terminal utility
+#include <termios.h>
+#include <sys/ioctl.h>
+
 // opendir, readdir
 #include <sys/dir.h>
 
@@ -18,6 +22,15 @@
 using namespace std;
 
 // ------------- Data Structures---------------
+struct editorConfig
+{
+    int screenrows;
+    int screencols;
+    struct termios orig_termios;
+    int cx, cy;
+};
+struct editorConfig E;
+
 struct dirent *dir;
 struct stat sb;
 struct filestr
@@ -34,13 +47,76 @@ struct filestr
 vector<filestr> filesarr;
 string cwd;
 
+// -------------------Normal Mode----------------
+void enableNormalMode()
+{
+
+    tcgetattr(STDIN_FILENO, &E.orig_termios);
+    // On pressing :
+    // atexit(disableRawMode);
+
+    struct termios raw = E.orig_termios;
+
+    // IXON for ctrl S or ctrl q
+    // ICRNL for ctrl m
+    raw.c_iflag = raw.c_iflag & ~(IXON | ICRNL);
+
+    // To disable enter as terminal default
+    raw.c_oflag &= ~(OPOST);
+
+    // ISIG for ctrl c or ctrl z
+    // IEXTEN for ctrl v
+    raw.c_lflag = raw.c_lflag & ~(ECHO | ICANON | ISIG | IEXTEN);
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+int getWindowSize(int *rows, int *cols)
+{
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
+    {
+        return -1;
+    }
+    else
+    {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row;
+        return 0;
+    }
+}
+
+void move_cursor(int row, int col)
+{
+    cout << "\033[" << row << ";" << col << "H";
+}
+
+void change_statusbar(string s)
+{
+    move_cursor(E.screenrows - 3, 1);
+    cout << "\033[K";
+    cout << s;
+}
+
+void upkey()
+{
+    if (E.cx - 1 > 0)
+        move_cursor(--E.cx, 1);
+}
+
+void downkey()
+{
+    int sz = filesarr.size();
+    if (E.cx + 1 <= min(E.screenrows, sz))
+        move_cursor(++E.cx, 1);
+}
+
 //-------------- Directory Utility Functions ------------------------
 void getcurrdir()
 {
     char buf[100];
     cwd = getcwd(buf, 100);
     cwd += "/";
-    cout << cwd << endl;
 }
 
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
@@ -57,7 +133,11 @@ void printfiles()
     int lmw = 20;
     int sw = 8;
     char f = ' ';
-    for (int i = 0; i < filesarr.size(); i++)
+
+    int sz = filesarr.size();
+    int end = min(sz, E.screenrows);
+
+    for (int i = 0; i < end; i++)
     {
         cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
         cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
@@ -65,8 +145,13 @@ void printfiles()
         cout << left << setw(sw) << setfill(f) << filesarr[i].size;
         cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
         cout << left << setw(pw) << setfill(f) << filesarr[i].name;
-        cout << endl;
+        cout << "\r\n";
     }
+
+    E.cx = 1;
+    E.cy = 0;
+    change_statusbar("Normal Mode");
+    move_cursor(E.cx, 1);
 }
 
 string getPermissions(struct stat &_sb)
@@ -90,6 +175,9 @@ string getPermissions(struct stat &_sb)
 
 void getAllFiles(string path)
 {
+    getWindowSize(&E.screenrows, &E.screencols);
+    E.cx = 1;
+    E.cy = 1;
     clear_screen();
     DIR *curr_dir;
     filesarr.clear();
@@ -260,7 +348,30 @@ int main()
     getcurrdir();
     getAllFiles(cwd);
 
-    change_dir("../../");
+    enableNormalMode();
+    char ch;
+
+    while (true)
+    {
+        ch = cin.get();
+        if (ch == 'q')
+            break;
+        int t = ch;
+
+        switch (t)
+        {
+        case 65:
+            upkey();
+            break;
+        case 66:
+            downkey();
+            break;
+        default:
+            break;
+        }
+    }
+
+    // change_dir("../../");
 
     // string src = "./hello.txt";
     // string dest = "../hello1/hellocop.txt";
@@ -277,6 +388,8 @@ int main()
     // make_dir(path);
     // remove_dir(path);
     // delete_file(path);
+
+    atexit(clear_screen);
 
     return 0;
 }
