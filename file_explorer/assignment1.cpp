@@ -30,6 +30,8 @@ struct editorConfig
     struct termios orig_termios;
     int cx, cy;
     int rowoffset;
+    int globalind;
+    int start;
 };
 struct editorConfig E;
 
@@ -68,7 +70,7 @@ int getWindowSize(int *rows, int *cols)
     else
     {
         *cols = ws.ws_col;
-        *rows = ws.ws_row;
+        *rows = ws.ws_row - 2;
         return 0;
     }
 }
@@ -106,10 +108,18 @@ string splittoprev(string str, char del)
     string finalpth = "";
     for (int i = 0; i < pth.size() - 2; i++)
     {
-        finalpth = finalpth + pth[i];
+        finalpth = finalpth + pth[i] + "/";
     }
 
     return finalpth;
+}
+
+void init()
+{
+    E.cx = 1;
+    E.cy = 1;
+    E.globalind = 0;
+    E.start = 0;
 }
 
 //-------------- Directory Utility Functions ------------------------
@@ -145,10 +155,12 @@ void printfiles()
     string exectext = "\033[1;32m";
     string normaltext = "\033[0m";
 
-    int sz = filesarr.size();
-    int end = min(sz, E.screenrows - 1);
+    clear_screen();
 
-    for (int i = 0; i < end; i++)
+    int sz = filesarr.size();
+    int end = min(sz, E.screenrows);
+
+    for (int i = E.start; i < end + E.start; i++)
     {
         cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
         cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
@@ -164,9 +176,9 @@ void printfiles()
         cout << "\r\n";
     }
 
-    E.cx = 1;
-    E.cy = 0;
-    change_statusbar("--Normal Mode--  " + cwd, 1);
+    // E.cx = 1;
+    // E.cy = 0;
+    change_statusbar("--Normal Mode--  " + cwd, -1);
     // change_statusbar(cwd, 1);
     move_cursor(E.cx, 1);
 }
@@ -193,9 +205,7 @@ string getPermissions(struct stat &_sb)
 void getAllFiles(string path)
 {
     getWindowSize(&E.screenrows, &E.screencols);
-    E.cx = 1;
-    E.cy = 1;
-    clear_screen();
+    // clear_screen();
     DIR *curr_dir;
     filesarr.clear();
     curr_dir = opendir(path.c_str());
@@ -245,6 +255,7 @@ void change_dir(const string path)
         cout << "Unable to change the Directory" << endl;
         return;
     }
+    init();
     getcurrdir();
     getAllFiles(cwd);
 }
@@ -387,14 +398,45 @@ void enableNormalMode()
 void upkey()
 {
     if (E.cx - 1 > 0)
+    {
+        --E.globalind;
         move_cursor(--E.cx, 1);
+    }
+    else
+    {
+        if (E.start > 0)
+        {
+            E.start--;
+            E.globalind--;
+            printfiles();
+        }
+    }
 }
 
 void downkey()
 {
-    int sz = filesarr.size();
-    if (E.cx + 1 <= min(E.screenrows - 2, sz))
+    int sz = filesarr.size() - E.start;
+    if (E.cx + 1 <= min(E.screenrows, sz))
+    {
+        ++E.globalind;
         move_cursor(++E.cx, 1);
+    }
+    else
+    {
+        if (E.screenrows < sz)
+        {
+            if (E.globalind + 1 < filesarr.size())
+            {
+                ++E.start;
+                ++E.globalind;
+                printfiles();
+            }
+            else
+            {
+                return;
+            }
+        }
+    }
 }
 
 void goto_parent_dir()
@@ -406,7 +448,7 @@ void goto_parent_dir()
 
 void enter()
 {
-    struct filestr f = filesarr[E.cx - 1];
+    struct filestr f = filesarr[E.globalind];
 
     if (f.permission[0] == 'd')
     {
@@ -484,6 +526,7 @@ void exitfunc()
 
 int main()
 {
+    init();
     getHomeDir();
     getcurrdir();
     getAllFiles(cwd);
