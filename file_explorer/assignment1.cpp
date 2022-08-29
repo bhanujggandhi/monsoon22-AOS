@@ -434,6 +434,7 @@ void enter()
             execl("/usr/bin/xdg-open", "xdg-open", f.path.c_str(), (char *)0);
             exit(1);
         }
+        getAllFiles(cwd);
     }
 }
 
