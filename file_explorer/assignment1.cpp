@@ -57,7 +57,7 @@ stack<string> forwardstk;
 
 void clear_screen()
 {
-    cout << "\033[2J\033[H";
+    cout << "\033[H\033[2J\033[3J";
 }
 
 int getWindowSize(int *rows, int *cols)
@@ -139,6 +139,7 @@ void getHomeDir()
     }
 
     HOME = h;
+    cout << HOME;
 }
 
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
@@ -538,7 +539,7 @@ int main()
     while (true)
     {
         ch = cin.get();
-        if (ch == 'q')
+        if (ch == 'q' or ch == 'Q')
             break;
         int t = ch;
 
@@ -562,7 +563,7 @@ int main()
         case 68:
             goback();
             break;
-        case 104:
+        case 104 | 72:
             goHome();
             break;
         default:
@@ -588,7 +589,7 @@ int main()
     // remove_dir(path);
     // delete_file(path);
 
-    atexit(clear_screen);
+    atexit(exitfunc);
 
     return 0;
 }
