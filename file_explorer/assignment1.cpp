@@ -54,9 +54,18 @@ string HOME;
 stack<string> backstk;
 stack<string> forwardstk;
 
+string keys = "";
+vector<string> cmdkeys;
+
 void clear_screen()
 {
-    cout << "\033[H\033[2J\033[3J";
+    // cout << "\033[H\033[2J\033[3J";
+    cout << "\033[H\033[2J";
+}
+
+void clear_currline()
+{
+    cout << "\033[2K";
 }
 
 int getWindowSize(int *rows, int *cols)
@@ -69,7 +78,7 @@ int getWindowSize(int *rows, int *cols)
     else
     {
         *cols = ws.ws_col;
-        *rows = ws.ws_row - 2;
+        *rows = ws.ws_row - 4;
         return 0;
     }
 }
@@ -82,7 +91,7 @@ void move_cursor(int row, int col)
 void change_statusbar(string s, int bottom)
 {
     move_cursor(E.maxRows - bottom, 1);
-    cout << "\033[K";
+    clear_currline();
     cout << "\033[1;7m" << s << "\033[0m";
 }
 
@@ -111,6 +120,24 @@ string splittoprev(string str, char del)
     }
 
     return finalpth;
+}
+
+void splitcommads(string str, char del)
+{
+    string temp = "";
+
+    for (int i = 0; i < str.size(); i++)
+    {
+        if (str[i] != del)
+            temp += str[i];
+        else
+        {
+            cmdkeys.push_back(temp);
+            temp = "";
+        }
+    }
+
+    cmdkeys.push_back(temp);
 }
 
 void init()
@@ -178,7 +205,7 @@ void printfiles()
 
     // E.cx = 1;
     // E.cy = 0;
-    change_statusbar("--Normal Mode--  " + cwd, -1);
+    change_statusbar("--Normal Mode--  " + cwd, -2);
     // change_statusbar(cwd, 1);
     move_cursor(E.cur_x, 1);
 }
@@ -525,6 +552,82 @@ void exitfunc()
     clear_screen();
 }
 
+// ----------------- Command Mode -----------------------
+
+void commandexec()
+{
+    cmdkeys.clear();
+    splitcommads(keys, ' ');
+    keys = "";
+
+    if (cmdkeys.empty())
+        return;
+
+    move_cursor(E.maxRows + 4, 1);
+    clear_currline();
+    cout << cmdkeys[0];
+}
+
+void commandmode()
+{
+    change_statusbar("--Command Mode--  " + cwd, -2);
+    move_cursor(E.maxRows + 3, 1);
+
+    int col = 1;
+    char ch;
+    while (true)
+    {
+        ch = cin.get();
+        int t = ch;
+        if (t == 27)
+        {
+            change_statusbar("--Normal Mode--  " + cwd, -2);
+            init();
+            move_cursor(E.cur_x, 1);
+            break;
+        }
+
+        switch (ch)
+        {
+        case 13:
+            clear_currline();
+            move_cursor(E.maxRows + 4, 1);
+            clear_currline();
+            commandexec();
+            move_cursor(E.maxRows + 3, 1);
+            col = 1;
+            keys = "";
+            break;
+        case 127:
+            break;
+        default:
+            keys.push_back(ch);
+            break;
+        }
+
+        if (ch != 13)
+        {
+            if (ch != 127)
+            {
+                cout << ch;
+                move_cursor(E.maxRows + 3, ++col);
+            }
+            else
+            {
+                clear_currline();
+                if (keys.length() <= 1)
+                    keys = "";
+                else
+                    keys.pop_back();
+                move_cursor(E.maxRows + 3, 1);
+                cout << keys;
+                col = keys.size();
+                move_cursor(E.maxRows + 3, ++col);
+            }
+        }
+    }
+}
+
 int main()
 {
     init();
@@ -565,6 +668,9 @@ int main()
             break;
         case 104 | 72:
             goHome();
+            break;
+        case 58:
+            commandmode();
             break;
         default:
             break;
