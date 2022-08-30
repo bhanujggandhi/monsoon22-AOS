@@ -387,19 +387,18 @@ void remove_dir(string &path)
 }
 
 //------------------ File Utilities ------------------------
-void create_file(string &path)
+void create_file(string path, string filename)
 {
-    string filename;
-    cin >> filename;
 
-    filename = path + filename;
+    filename = path + "/" + filename;
 
     if (creat(filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH) == -1)
-        cout << "Failed to create the file" << endl;
+        printoutput("Failed to create the file", false);
     else
     {
-        cout << "File created" << endl;
-        getAllFiles(path);
+        printoutput("File created successfully", true);
+        // path = pathresolver(path);
+        change_dir(path);
     }
 }
 
@@ -808,6 +807,30 @@ void renameexec()
         printoutput("Rename operation failed", false);
 }
 
+void create_fileexec()
+{
+    if (cmdkeys.size() != 3)
+    {
+        printoutput("Invalid usage of create_file command", false);
+        return;
+    }
+
+    string filename = cmdkeys[1];
+    string destination = cmdkeys[2];
+
+    destination = pathresolver(destination);
+
+    if (destination == "ERR")
+    {
+        printoutput("Invalid destination path", false);
+    }
+    else
+    {
+        create_file(destination, filename);
+        // cout << destination << "   " << filename << endl;
+    }
+}
+
 int searchexec(string source)
 {
     if (cmdkeys.size() != 2)
@@ -885,7 +908,7 @@ void commandexec()
     }
     else if (task == "create_file")
     {
-        printoutput("create file called", true);
+        create_fileexec();
     }
     else if (task == "create_dir")
     {
