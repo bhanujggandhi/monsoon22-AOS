@@ -554,6 +554,16 @@ void exitfunc()
 
 // ----------------- Command Mode -----------------------
 
+void printoutput(const string msg, bool status)
+{
+    move_cursor(E.maxRows + 4, 1);
+    clear_currline();
+    if (status)
+        cout << "\033[1;32m" << msg << "\033[0m";
+    else
+        cout << "\033[1;31m" << msg << "\033[0m";
+}
+
 void commandexec()
 {
     cmdkeys.clear();
@@ -563,9 +573,48 @@ void commandexec()
     if (cmdkeys.empty())
         return;
 
-    move_cursor(E.maxRows + 4, 1);
-    clear_currline();
-    cout << cmdkeys[0];
+    string task = cmdkeys[0];
+
+    if (task == "copy")
+    {
+        printoutput("copy called", true);
+    }
+    else if (task == "move")
+    {
+        printoutput("move called", true);
+    }
+    else if (task == "rename")
+    {
+        printoutput("rename called", true);
+    }
+    else if (task == "create_file")
+    {
+        printoutput("create file called", true);
+    }
+    else if (task == "create_dir")
+    {
+        printoutput("create dir called", true);
+    }
+    else if (task == "delete_file")
+    {
+        printoutput("delete file called", true);
+    }
+    else if (task == "delete_dir")
+    {
+        printoutput("delete dir called", true);
+    }
+    else if (task == "goto")
+    {
+        printoutput("goto called", true);
+    }
+    else if (task == "search")
+    {
+        printoutput("search called", true);
+    }
+    else
+    {
+        printoutput("Invalid Command!", false);
+    }
 }
 
 void commandmode()
