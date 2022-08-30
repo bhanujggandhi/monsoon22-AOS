@@ -23,17 +23,16 @@
 using namespace std;
 
 // ------------- Data Structures---------------
-struct editorConfig
+struct terminalConfig
 {
-    int screenrows;
-    int screencols;
+    int maxRows;
+    int maxCols;
     struct termios orig_termios;
-    int cx, cy;
-    int rowoffset;
-    int globalind;
-    int start;
+    int cur_x, cur_y;
+    int file_idx;
+    int file_start;
 };
-struct editorConfig E;
+struct terminalConfig E;
 
 struct dirent *dir;
 struct stat sb;
@@ -82,7 +81,7 @@ void move_cursor(int row, int col)
 
 void change_statusbar(string s, int bottom)
 {
-    move_cursor(E.screenrows - bottom, 1);
+    move_cursor(E.maxRows - bottom, 1);
     cout << "\033[K";
     cout << "\033[1;7m" << s << "\033[0m";
 }
@@ -116,10 +115,10 @@ string splittoprev(string str, char del)
 
 void init()
 {
-    E.cx = 1;
-    E.cy = 1;
-    E.globalind = 0;
-    E.start = 0;
+    E.cur_x = 1;
+    E.cur_y = 1;
+    E.file_idx = 0;
+    E.file_start = 0;
 }
 
 //-------------- Directory Utility Functions ------------------------
@@ -159,9 +158,9 @@ void printfiles()
     clear_screen();
 
     int sz = filesarr.size();
-    int end = min(sz, E.screenrows);
+    int end = min(sz, E.maxRows);
 
-    for (int i = E.start; i < end + E.start; i++)
+    for (int i = E.file_start; i < end + E.file_start; i++)
     {
         cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
         cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
@@ -181,7 +180,7 @@ void printfiles()
     // E.cy = 0;
     change_statusbar("--Normal Mode--  " + cwd, -1);
     // change_statusbar(cwd, 1);
-    move_cursor(E.cx, 1);
+    move_cursor(E.cur_x, 1);
 }
 
 string getPermissions(struct stat &_sb)
@@ -205,7 +204,7 @@ string getPermissions(struct stat &_sb)
 
 void getAllFiles(string path)
 {
-    getWindowSize(&E.screenrows, &E.screencols);
+    getWindowSize(&E.maxRows, &E.maxCols);
     // clear_screen();
     DIR *curr_dir;
     filesarr.clear();
@@ -398,17 +397,17 @@ void enableNormalMode()
 
 void upkey()
 {
-    if (E.cx - 1 > 0)
+    if (E.cur_x - 1 > 0)
     {
-        --E.globalind;
-        move_cursor(--E.cx, 1);
+        --E.file_idx;
+        move_cursor(--E.cur_x, 1);
     }
     else
     {
-        if (E.start > 0)
+        if (E.file_start > 0)
         {
-            E.start--;
-            E.globalind--;
+            E.file_start--;
+            E.file_idx--;
             printfiles();
         }
     }
@@ -416,20 +415,20 @@ void upkey()
 
 void downkey()
 {
-    int sz = filesarr.size() - E.start;
-    if (E.cx + 1 <= min(E.screenrows, sz))
+    int sz = filesarr.size() - E.file_start;
+    if (E.cur_x + 1 <= min(E.maxRows, sz))
     {
-        ++E.globalind;
-        move_cursor(++E.cx, 1);
+        ++E.file_idx;
+        move_cursor(++E.cur_x, 1);
     }
     else
     {
-        if (E.screenrows < sz)
+        if (E.maxRows < sz)
         {
-            if (E.globalind + 1 < filesarr.size())
+            if (E.file_idx + 1 < filesarr.size())
             {
-                ++E.start;
-                ++E.globalind;
+                ++E.file_start;
+                ++E.file_idx;
                 printfiles();
             }
             else
@@ -449,7 +448,7 @@ void goto_parent_dir()
 
 void enter()
 {
-    struct filestr f = filesarr[E.globalind];
+    struct filestr f = filesarr[E.file_idx];
 
     if (f.permission[0] == 'd')
     {
@@ -516,6 +515,7 @@ void goHome()
 
 void resizehandler(int t)
 {
+    init();
     getAllFiles(cwd);
 }
 

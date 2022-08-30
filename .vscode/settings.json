@@ -3,6 +3,12 @@
     "string": "cpp",
     "iostream": "cpp",
     "iomanip": "cpp",
-    "ostream": "cpp"
+    "ostream": "cpp",
+    "*.tcc": "cpp",
+    "bitset": "cpp",
+    "cstdlib": "cpp",
+    "mutex": "cpp",
+    "shared_mutex": "cpp",
+    "regex": "cpp"
   }
 }
