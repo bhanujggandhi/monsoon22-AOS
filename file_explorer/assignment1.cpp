@@ -350,20 +350,18 @@ bool change_dir(const string path)
     return true;
 }
 
-void make_dir(string &path)
+void make_dir(const string path, string foldername)
 {
-    string foldername;
-    cin >> foldername;
 
-    foldername = path + foldername;
+    foldername = path + "/" + foldername;
 
     if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
-        cout << "Folder created successfully" << endl;
-        getAllFiles(path);
+        printoutput("Folder created successfully", true);
+        change_dir(path);
     }
     else
-        cout << "Failed to create dir" << endl;
+        printoutput("Failed to create dir", false);
 }
 
 void remove_dir(string &path)
@@ -831,6 +829,30 @@ void create_fileexec()
     }
 }
 
+void create_direxec()
+{
+    if (cmdkeys.size() != 3)
+    {
+        printoutput("Invalid usage of create_file command", false);
+        return;
+    }
+
+    string foldername = cmdkeys[1];
+    string destination = cmdkeys[2];
+
+    destination = pathresolver(destination);
+
+    if (destination == "ERR")
+    {
+        printoutput("Invalid destination path", false);
+    }
+    else
+    {
+        make_dir(destination, foldername);
+        // cout << destination << "   " << filename << endl;
+    }
+}
+
 int searchexec(string source)
 {
     if (cmdkeys.size() != 2)
@@ -912,7 +934,7 @@ void commandexec()
     }
     else if (task == "create_dir")
     {
-        printoutput("create dir called", true);
+        create_direxec();
     }
     else if (task == "delete_file")
     {
