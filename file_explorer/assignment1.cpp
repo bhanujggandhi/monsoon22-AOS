@@ -140,6 +140,23 @@ void splitcommads(string str, char del)
     cmdkeys.push_back(temp);
 }
 
+string pathresolver(string path)
+{
+    string resolvedpath = "";
+    char buffer[PATH_MAX];
+    char *res = realpath(path.c_str(), buffer);
+    if (res)
+    {
+        string temp(buffer);
+        resolvedpath = temp;
+    }
+    else
+    {
+    }
+
+    return resolvedpath;
+}
+
 void init()
 {
     E.cur_x = 1;
@@ -275,16 +292,17 @@ void getAllFiles(string path)
     closedir(curr_dir);
 }
 
-void change_dir(const string path)
+bool change_dir(const string path)
 {
-    if (chdir(path.c_str()))
+    string p = pathresolver(path);
+    if (chdir(p.c_str()))
     {
-        cout << "Unable to change the Directory" << endl;
-        return;
+        return false;
     }
     init();
     getcurrdir();
     getAllFiles(cwd);
+    return true;
 }
 
 void make_dir(string &path)
@@ -469,7 +487,7 @@ void downkey()
 void goto_parent_dir()
 {
     backstk.push(cwd);
-    change_dir(splittoprev(cwd, '/'));
+    change_dir("..");
     getAllFiles(cwd);
 }
 
@@ -621,7 +639,14 @@ void commandexec()
     }
     else if (task == "goto")
     {
-        printoutput("goto called", true);
+        if (change_dir(cmdkeys[1]))
+        {
+            printoutput("Directory changed successfully", true);
+        }
+        else
+        {
+            printoutput("Invalid directory path", false);
+        }
     }
     else if (task == "search")
     {
@@ -764,7 +789,7 @@ int main()
     // remove_dir(path);
     // delete_file(path);
 
-    atexit(exitfunc);
+    atexit(&exitfunc);
 
     return 0;
 }
