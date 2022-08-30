@@ -480,6 +480,7 @@ void copy_dir(const string source, const string destination)
                 }
             }
         }
+        closedir(dir);
     }
     else
     {
@@ -527,6 +528,7 @@ void move_dir(const string source, const string destination)
             }
         }
         rmdir(source.c_str());
+        closedir(dir);
     }
     else
     {
@@ -806,6 +808,58 @@ void renameexec()
         printoutput("Rename operation failed", false);
 }
 
+int searchexec(string source)
+{
+    if (cmdkeys.size() != 2)
+    {
+        printoutput("Inapproriate use of search command", false);
+        return -1;
+    }
+
+    string searchkey = cmdkeys[1];
+    // cout << searchkey << endl;
+
+    DIR *dir;
+    struct dirent *newDir;
+    // cout << source << endl;
+    dir = opendir(source.c_str());
+    if (dir == NULL)
+    {
+        printoutput("Error in opening directory", false);
+        return -1;
+    }
+    else
+    {
+        for (newDir = readdir(dir); newDir != NULL; newDir = readdir(dir))
+        {
+            string filename(newDir->d_name);
+            if (filename != "." and filename != "..")
+            {
+                if (filename == searchkey)
+                {
+                    return 1;
+                    closedir(dir);
+                }
+                else
+                {
+                    string srcfilepath = source + "/" + filename;
+
+                    if (checkDir(srcfilepath))
+                    {
+                        if (searchexec(srcfilepath) == 1)
+                        {
+                            return 1;
+                            closedir(dir);
+                        }
+                    }
+                }
+            }
+        }
+        closedir(dir);
+        return 0;
+    }
+}
+
 void commandexec()
 {
     cmdkeys.clear();
@@ -858,7 +912,14 @@ void commandexec()
     }
     else if (task == "search")
     {
-        printoutput("search called", true);
+        int output = searchexec(cwd);
+        if (output == 1)
+            printoutput("True", true);
+        else if (output == 0)
+            printoutput("False", false);
+        else
+        {
+        }
     }
     else if (task == "quit")
     {
