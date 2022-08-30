@@ -138,7 +138,7 @@ string splittoprev(string str, char del)
 
     string finalpath = "";
 
-    for (int i = 0; i < pth.size() - 2; i++)
+    for (int i = 0; i < pth.size() - 1; i++)
     {
         finalpath = finalpath + "/" + pth[i];
     }
@@ -786,6 +786,26 @@ void moveexec()
     }
 }
 
+void renameexec()
+{
+    if (cmdkeys.size() != 3)
+    {
+        printoutput("Inapproriate use of rename command", false);
+    }
+    string filename = cmdkeys[1];
+    string newname = cmdkeys[2];
+    string pth = pathresolver(filename);
+    string origpath = splittoprev(pth, '/');
+    filename = getfilenamesplit(filename, '/');
+    newname = getfilenamesplit(newname, '/');
+    newname = origpath + "/" + newname;
+
+    if (rename_file(pth, newname))
+        printoutput("Rename operation sucessful", true);
+    else
+        printoutput("Rename operation failed", false);
+}
+
 void commandexec()
 {
     cmdkeys.clear();
@@ -804,11 +824,10 @@ void commandexec()
     else if (task == "move")
     {
         moveexec();
-        // printoutput("move called", true);
     }
     else if (task == "rename")
     {
-        printoutput("rename called", true);
+        renameexec();
     }
     else if (task == "create_file")
     {
