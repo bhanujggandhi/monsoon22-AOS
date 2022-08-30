@@ -425,7 +425,7 @@ void copy_file(const string source, const string destination)
     char buf;
     if (s == -1)
     {
-        cout << "Source file cannot be opened" << endl;
+        printoutput("Source file cannot be opened", false);
         close(s);
         return;
     }
@@ -433,7 +433,7 @@ void copy_file(const string source, const string destination)
 
     if (d == -1)
     {
-        cout << "Destination file cannot be opened" << endl;
+        printoutput("Destination file cannot be opened", false);
         close(d);
         close(s);
         return;
@@ -443,10 +443,48 @@ void copy_file(const string source, const string destination)
     {
         write(d, &buf, 1);
     }
-
-    cout << "File copied successfully" << endl;
     close(d);
     close(s);
+}
+
+void copy_dir(const string source, const string destination)
+{
+    if (!mkdir(destination.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
+    {
+        DIR *dir;
+        struct dirent *newDir;
+
+        dir = opendir(source.c_str());
+        if (dir == NULL)
+        {
+            printoutput("Error in opening source directory", false);
+        }
+        else
+        {
+            for (newDir = readdir(dir); newDir != NULL; newDir = readdir(dir))
+            {
+                string filename(newDir->d_name);
+                if (filename != "." and filename != "..")
+                {
+                    string srcfilepath = source + "/" + filename;
+                    string destfilepath = destination + "/" + filename;
+
+                    if (checkDir(srcfilepath))
+                    {
+                        copy_dir(srcfilepath, destfilepath);
+                    }
+                    else
+                    {
+                        copy_file(srcfilepath, destfilepath);
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        printoutput("Error in creating new directory", false);
+    }
 }
 
 void rename_file(const string path, const string newpath)
@@ -661,10 +699,13 @@ void copyexec()
 
         if (checkDir(sourcepath))
         {
+            copy_dir(sourcepath, destination);
+            printoutput("Directory copied successfully", true);
         }
         else
         {
             copy_file(sourcepath, destination);
+            printoutput("File copied successfully", true);
         }
     }
 }
@@ -794,53 +835,53 @@ void commandmode()
 
 int main()
 {
-    // init();
+    init();
     getHomeDir();
     getcurrdir();
-    // getAllFiles(cwd);
-    // signal(SIGWINCH, resizehandler);
+    getAllFiles(cwd);
+    signal(SIGWINCH, resizehandler);
 
-    // enableNormalMode();
-    // char ch;
+    enableNormalMode();
+    char ch;
 
-    // while (true)
-    // {
-    //     ch = cin.get();
-    //     if (ch == 'q' or ch == 'Q')
-    //         break;
-    //     int t = ch;
+    while (true)
+    {
+        ch = cin.get();
+        if (ch == 'q' or ch == 'Q')
+            break;
+        int t = ch;
 
-    //     switch (t)
-    //     {
-    //     case 65:
-    //         upkey();
-    //         break;
-    //     case 66:
-    //         downkey();
-    //         break;
-    //     case 13:
-    //         enter();
-    //         break;
-    //     case 127:
-    //         goto_parent_dir();
-    //         break;
-    //     case 67:
-    //         goforward();
-    //         break;
-    //     case 68:
-    //         goback();
-    //         break;
-    //     case 104 | 72:
-    //         goHome();
-    //         break;
-    //     case 58:
-    //         commandmode();
-    //         break;
-    //     default:
-    //         // cout << t << "   " << ch << "   ";
-    //         break;
-    //     }
-    // }
+        switch (t)
+        {
+        case 65:
+            upkey();
+            break;
+        case 66:
+            downkey();
+            break;
+        case 13:
+            enter();
+            break;
+        case 127:
+            goto_parent_dir();
+            break;
+        case 67:
+            goforward();
+            break;
+        case 68:
+            goback();
+            break;
+        case 104 | 72:
+            goHome();
+            break;
+        case 58:
+            commandmode();
+            break;
+        default:
+            // cout << t << "   " << ch << "   ";
+            break;
+        }
+    }
 
     // change_dir("../../");
 
@@ -861,13 +902,13 @@ int main()
     // delete_file(path);
 
     // cmdkeys.push_back("copy");
-    // cmdkeys.push_back("../AOS_Assignment_1.pdf");
-    // cmdkeys.push_back(".");
+    // cmdkeys.push_back("../hello1");
+    // cmdkeys.push_back("hello");
     // copyexec();
 
     // cout << pathresolver("hello");
 
-    // atexit(&exitfunc);
+    atexit(&exitfunc);
 
     return 0;
 }
