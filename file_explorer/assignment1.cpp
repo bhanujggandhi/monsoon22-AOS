@@ -564,6 +564,22 @@ void printoutput(const string msg, bool status)
         cout << "\033[1;31m" << msg << "\033[0m";
 }
 
+void clearcommandline()
+{
+    move_cursor(E.maxRows + 3, 1);
+    clear_currline();
+    move_cursor(E.maxRows + 4, 1);
+    clear_currline();
+}
+
+void exitcommandmode()
+{
+    clearcommandline();
+    change_statusbar("--Normal Mode--  " + cwd, -2);
+    init();
+    move_cursor(E.cur_x, 1);
+}
+
 void commandexec()
 {
     cmdkeys.clear();
@@ -611,10 +627,19 @@ void commandexec()
     {
         printoutput("search called", true);
     }
+    else if (task == "quit")
+    {
+        exitfunc();
+        exit(0);
+        return;
+    }
     else
     {
         printoutput("Invalid Command!", false);
     }
+
+    move_cursor(E.maxRows + 3, 1);
+    keys = "";
 }
 
 void commandmode()
@@ -630,22 +655,16 @@ void commandmode()
         int t = ch;
         if (t == 27)
         {
-            change_statusbar("--Normal Mode--  " + cwd, -2);
-            init();
-            move_cursor(E.cur_x, 1);
+            exitcommandmode();
             break;
         }
 
         switch (ch)
         {
         case 13:
-            clear_currline();
-            move_cursor(E.maxRows + 4, 1);
-            clear_currline();
+            clearcommandline();
             commandexec();
-            move_cursor(E.maxRows + 3, 1);
             col = 1;
-            keys = "";
             break;
         case 127:
             break;
@@ -722,6 +741,7 @@ int main()
             commandmode();
             break;
         default:
+            // cout << t << "   " << ch << "   ";
             break;
         }
     }
