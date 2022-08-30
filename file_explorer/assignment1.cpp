@@ -364,26 +364,6 @@ void make_dir(const string path, string foldername)
         printoutput("Failed to create dir", false);
 }
 
-void remove_dir(string &path)
-{
-    string foldername;
-    cin >> foldername;
-
-    foldername = path + foldername;
-
-    cout << "Deleting: " << foldername << endl;
-    int n;
-    cin >> n;
-
-    if (!rmdir(foldername.c_str()))
-    {
-        cout << "Folder deleted successfully" << endl;
-        getAllFiles(path);
-    }
-    else
-        cout << "Failed to delete dir" << endl;
-}
-
 //------------------ File Utilities ------------------------
 void create_file(string path, string filename)
 {
@@ -417,6 +397,43 @@ void delete_file(string path)
         else
             printoutput("Failed to delete the file", false);
     }
+}
+
+void remove_dir(string path)
+{
+    DIR *dir;
+    struct dirent *newDir;
+
+    path = pathresolver(path);
+    dir = opendir(path.c_str());
+
+    if (dir == NULL)
+    {
+        printoutput("Error in opening source directory", false);
+    }
+    else
+    {
+        for (newDir = readdir(dir); newDir != NULL; newDir = readdir(dir))
+        {
+            string filename(newDir->d_name);
+            if (filename != "." and filename != "..")
+            {
+                string destfolderpath = path + "/" + filename;
+
+                if (checkDir(destfolderpath))
+                {
+                    remove_dir(destfolderpath);
+                    rmdir(destfolderpath.c_str());
+                }
+                else
+                {
+                    delete_file(destfolderpath);
+                }
+            }
+        }
+        rmdir(path.c_str());
+    }
+    closedir(dir);
 }
 
 void copy_file(const string source, const string destination)
@@ -867,6 +884,27 @@ void delete_fileexec()
     delete_file(cmdkeys[1]);
 }
 
+void delete_direxec()
+{
+    if (cmdkeys.size() != 2)
+    {
+        printoutput("Insufficient number of arguments", false);
+        return;
+    }
+
+    string path = cmdkeys[1];
+    path = pathresolver(path);
+    if (path == "ERR")
+    {
+        printoutput("Invalid path", false);
+    }
+    else
+    {
+        remove_dir(path);
+        printoutput("Directory deleted successfully", true);
+    }
+}
+
 int searchexec(string source)
 {
     if (cmdkeys.size() != 2)
@@ -956,7 +994,7 @@ void commandexec()
     }
     else if (task == "delete_dir")
     {
-        printoutput("delete dir called", true);
+        // delete_direxec();
     }
     else if (task == "goto")
     {
@@ -1098,31 +1136,6 @@ int main()
             break;
         }
     }
-
-    // change_dir("../../");
-
-    // string src = "./hello.txt";
-    // string dest = "./hello";
-    // string p = "../hello1/";
-    // delete_file(p);
-    // copy_file(src, dest);
-
-    // change_dir(p);
-
-    // string newpath;
-    // cin >> newpath;
-    // change_dir(newpath);
-
-    // make_dir(path);
-    // remove_dir(path);
-    // delete_file(path);
-
-    // cmdkeys.push_back("copy");
-    // cmdkeys.push_back("../hello1");
-    // cmdkeys.push_back("hello");
-    // copyexec();
-
-    // cout << pathresolver("hello");
 
     atexit(&exitfunc);
 
