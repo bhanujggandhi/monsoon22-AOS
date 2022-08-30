@@ -400,19 +400,23 @@ void create_file(string path, string filename)
     }
 }
 
-void delete_file(string &path)
+void delete_file(string path)
 {
-    cout << "Deleting: " << path << endl;
-    int n;
-    cin >> n;
-
-    if (!remove(path.c_str()))
+    path = pathresolver(path);
+    cout << path;
+    if (path == "ERR")
     {
-        cout << "File deleted successfully" << endl;
-        getAllFiles(path);
+        printoutput("Invalid Path", false);
     }
     else
-        cout << "Failed to delete the file" << endl;
+    {
+        if (!remove(path.c_str()))
+        {
+            printoutput("File deleted successfully", true);
+        }
+        else
+            printoutput("Failed to delete the file", false);
+    }
 }
 
 void copy_file(const string source, const string destination)
@@ -853,6 +857,16 @@ void create_direxec()
     }
 }
 
+void delete_fileexec()
+{
+    if (cmdkeys.size() != 2)
+    {
+        printoutput("Invalid usage of delete_file command", false);
+    }
+
+    delete_file(cmdkeys[1]);
+}
+
 int searchexec(string source)
 {
     if (cmdkeys.size() != 2)
@@ -938,7 +952,7 @@ void commandexec()
     }
     else if (task == "delete_file")
     {
-        printoutput("delete file called", true);
+        delete_fileexec();
     }
     else if (task == "delete_dir")
     {
