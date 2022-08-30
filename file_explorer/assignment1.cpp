@@ -95,10 +95,19 @@ void change_statusbar(string s, int bottom)
     cout << "\033[1;7m" << s << "\033[0m";
 }
 
-string splittoprev(string str, char del)
+void printoutput(const string msg, bool status)
+{
+    move_cursor(E.maxRows + 4, 1);
+    clear_currline();
+    if (status)
+        cout << "\033[1;32m" << msg << "\033[0m";
+    else
+        cout << "\033[1;31m" << msg << "\033[0m";
+}
+
+void splitutility(string str, char del, vector<string> &pth)
 {
     string temp = "";
-    vector<string> pth;
 
     for (int i = 0; i < str.size(); i++)
     {
@@ -112,14 +121,46 @@ string splittoprev(string str, char del)
     }
 
     pth.push_back(temp);
+}
 
-    string finalpth = "";
+string getfilenamesplit(string str, char del)
+{
+    vector<string> pth;
+    splitutility(str, del, pth);
+
+    return pth[pth.size() - 1];
+}
+
+string splittoprev(string str, char del)
+{
+    vector<string> pth;
+    splitutility(str, del, pth);
+
+    string finalpath = "";
+
     for (int i = 0; i < pth.size() - 2; i++)
     {
-        finalpth = finalpth + pth[i] + "/";
+        finalpath = finalpath + "/" + pth[i];
     }
 
-    return finalpth;
+    return finalpath.substr(1);
+}
+
+bool checkDir(string path)
+{
+    struct stat sb;
+    if (stat(path.c_str(), &sb) == -1)
+    {
+        printoutput("Directory could not opened", false);
+        return false;
+    }
+    else
+    {
+        if ((S_ISDIR(sb.st_mode)))
+            return true;
+        else
+            return false;
+    }
 }
 
 void splitcommads(string str, char del)
@@ -142,6 +183,10 @@ void splitcommads(string str, char del)
 
 string pathresolver(string path)
 {
+    if (path[0] == '~')
+    {
+        path = HOME + path.substr(1);
+    }
     string resolvedpath = "";
     char buffer[PATH_MAX];
     char *res = realpath(path.c_str(), buffer);
@@ -152,6 +197,7 @@ string pathresolver(string path)
     }
     else
     {
+        resolvedpath = "ERR";
     }
 
     return resolvedpath;
@@ -182,7 +228,6 @@ void getHomeDir()
     }
 
     HOME = h;
-    cout << HOME;
 }
 
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
@@ -572,16 +617,6 @@ void exitfunc()
 
 // ----------------- Command Mode -----------------------
 
-void printoutput(const string msg, bool status)
-{
-    move_cursor(E.maxRows + 4, 1);
-    clear_currline();
-    if (status)
-        cout << "\033[1;32m" << msg << "\033[0m";
-    else
-        cout << "\033[1;31m" << msg << "\033[0m";
-}
-
 void clearcommandline()
 {
     move_cursor(E.maxRows + 3, 1);
@@ -598,6 +633,42 @@ void exitcommandmode()
     move_cursor(E.cur_x, 1);
 }
 
+void copyexec()
+{
+    if (cmdkeys.size() < 3)
+    {
+        printoutput("Insufficient number of arguments", false);
+        return;
+    }
+
+    for (int i = 1; i < cmdkeys.size() - 1; i++)
+    {
+        string sourcepath = cmdkeys[i];
+        string filename = getfilenamesplit(sourcepath, '/');
+        cout << filename << endl;
+
+        string destination = cmdkeys[cmdkeys.size() - 1];
+        destination = pathresolver(destination);
+        destination = destination + "/" + filename;
+
+        sourcepath = pathresolver(sourcepath);
+
+        if (sourcepath == "ERR")
+        {
+            printoutput("Invalid source path", false);
+            return;
+        }
+
+        if (checkDir(sourcepath))
+        {
+        }
+        else
+        {
+            copy_file(sourcepath, destination);
+        }
+    }
+}
+
 void commandexec()
 {
     cmdkeys.clear();
@@ -611,7 +682,7 @@ void commandexec()
 
     if (task == "copy")
     {
-        printoutput("copy called", true);
+        copyexec();
     }
     else if (task == "move")
     {
@@ -723,58 +794,58 @@ void commandmode()
 
 int main()
 {
-    init();
+    // init();
     getHomeDir();
     getcurrdir();
-    getAllFiles(cwd);
-    signal(SIGWINCH, resizehandler);
+    // getAllFiles(cwd);
+    // signal(SIGWINCH, resizehandler);
 
-    enableNormalMode();
-    char ch;
+    // enableNormalMode();
+    // char ch;
 
-    while (true)
-    {
-        ch = cin.get();
-        if (ch == 'q' or ch == 'Q')
-            break;
-        int t = ch;
+    // while (true)
+    // {
+    //     ch = cin.get();
+    //     if (ch == 'q' or ch == 'Q')
+    //         break;
+    //     int t = ch;
 
-        switch (t)
-        {
-        case 65:
-            upkey();
-            break;
-        case 66:
-            downkey();
-            break;
-        case 13:
-            enter();
-            break;
-        case 127:
-            goto_parent_dir();
-            break;
-        case 67:
-            goforward();
-            break;
-        case 68:
-            goback();
-            break;
-        case 104 | 72:
-            goHome();
-            break;
-        case 58:
-            commandmode();
-            break;
-        default:
-            // cout << t << "   " << ch << "   ";
-            break;
-        }
-    }
+    //     switch (t)
+    //     {
+    //     case 65:
+    //         upkey();
+    //         break;
+    //     case 66:
+    //         downkey();
+    //         break;
+    //     case 13:
+    //         enter();
+    //         break;
+    //     case 127:
+    //         goto_parent_dir();
+    //         break;
+    //     case 67:
+    //         goforward();
+    //         break;
+    //     case 68:
+    //         goback();
+    //         break;
+    //     case 104 | 72:
+    //         goHome();
+    //         break;
+    //     case 58:
+    //         commandmode();
+    //         break;
+    //     default:
+    //         // cout << t << "   " << ch << "   ";
+    //         break;
+    //     }
+    // }
 
     // change_dir("../../");
 
     // string src = "./hello.txt";
-    // string dest = "../hello1/hellocop.txt";
+    // string dest = "./hello";
     // string p = "../hello1/";
     // delete_file(p);
     // copy_file(src, dest);
@@ -789,7 +860,14 @@ int main()
     // remove_dir(path);
     // delete_file(path);
 
-    atexit(&exitfunc);
+    // cmdkeys.push_back("copy");
+    // cmdkeys.push_back("../AOS_Assignment_1.pdf");
+    // cmdkeys.push_back(".");
+    // copyexec();
+
+    // cout << pathresolver("hello");
+
+    // atexit(&exitfunc);
 
     return 0;
 }
