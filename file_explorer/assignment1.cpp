@@ -487,15 +487,50 @@ void copy_dir(const string source, const string destination)
     }
 }
 
-void rename_file(const string path, const string newpath)
+bool rename_file(const string path, const string newpath)
 {
-    if (rename(path.c_str(), newpath.c_str()) == 0)
+    return !(rename(path.c_str(), newpath.c_str()));
+}
+
+void move_dir(const string source, const string destination)
+{
+    if (!mkdir(destination.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
-        cout << "File renamed successfully" << endl;
+        DIR *dir;
+        struct dirent *newDir;
+
+        dir = opendir(source.c_str());
+        if (dir == NULL)
+        {
+            printoutput("Error in opening source directory", false);
+        }
+        else
+        {
+            for (newDir = readdir(dir); newDir != NULL; newDir = readdir(dir))
+            {
+                string filename(newDir->d_name);
+                if (filename != "." and filename != "..")
+                {
+                    string srcfilepath = source + "/" + filename;
+                    string destfilepath = destination + "/" + filename;
+
+                    if (checkDir(srcfilepath))
+                    {
+                        move_dir(srcfilepath, destfilepath);
+                        rmdir(srcfilepath.c_str());
+                    }
+                    else
+                    {
+                        rename_file(srcfilepath, destfilepath);
+                    }
+                }
+            }
+        }
+        rmdir(source.c_str());
     }
     else
     {
-        cout << "Rename File: Operation failed" << endl;
+        printoutput("Error in creating new directory", false);
     }
 }
 
@@ -683,7 +718,7 @@ void copyexec()
     {
         string sourcepath = cmdkeys[i];
         string filename = getfilenamesplit(sourcepath, '/');
-        cout << filename << endl;
+        // cout << filename << endl;
 
         string destination = cmdkeys[cmdkeys.size() - 1];
         destination = pathresolver(destination);
@@ -710,6 +745,47 @@ void copyexec()
     }
 }
 
+void moveexec()
+{
+    if (cmdkeys.size() < 3)
+    {
+        printoutput("Insufficient number of arguments", false);
+        return;
+    }
+
+    for (int i = 1; i < cmdkeys.size() - 1; i++)
+    {
+        string sourcepath = cmdkeys[i];
+        string filename = getfilenamesplit(sourcepath, '/');
+        // cout << filename << endl;
+
+        string destination = cmdkeys[cmdkeys.size() - 1];
+        destination = pathresolver(destination);
+        destination = destination + "/" + filename;
+
+        sourcepath = pathresolver(sourcepath);
+
+        if (sourcepath == "ERR")
+        {
+            printoutput("Invalid source path", false);
+            return;
+        }
+
+        if (checkDir(sourcepath))
+        {
+            move_dir(sourcepath, destination);
+            printoutput("Directory moved successfully", true);
+        }
+        else
+        {
+            if (rename_file(sourcepath, destination))
+                printoutput("File moved successfully", true);
+            else
+                printoutput("File couldn't moved", false);
+        }
+    }
+}
+
 void commandexec()
 {
     cmdkeys.clear();
@@ -727,7 +803,8 @@ void commandexec()
     }
     else if (task == "move")
     {
-        printoutput("move called", true);
+        moveexec();
+        // printoutput("move called", true);
     }
     else if (task == "rename")
     {
