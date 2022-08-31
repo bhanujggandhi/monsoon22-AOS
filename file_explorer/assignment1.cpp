@@ -440,7 +440,7 @@ void copy_file(const string source, const string destination)
 {
     int s = open(source.c_str(), O_RDONLY);
     int d;
-    char buf;
+    char buf[BUFSIZ];
     if (s == -1)
     {
         printoutput("Source file cannot be opened", false);
@@ -457,9 +457,10 @@ void copy_file(const string source, const string destination)
         return;
     }
 
-    while (read(s, &buf, 1))
+    size_t size;
+    while ((size = read(s, buf, BUFSIZ)) > 0)
     {
-        write(d, &buf, 1);
+        write(d, buf, size);
     }
     close(d);
     close(s);
