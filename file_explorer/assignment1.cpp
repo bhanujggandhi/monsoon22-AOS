@@ -357,8 +357,8 @@ void make_dir(const string path, string foldername)
 
     if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
+        getAllFiles(cwd);
         printoutput("Folder created successfully", true);
-        change_dir(path);
     }
     else
         printoutput("Failed to create dir", false);
@@ -374,9 +374,8 @@ void create_file(string path, string filename)
         printoutput("Failed to create the file", false);
     else
     {
+        getAllFiles(cwd);
         printoutput("File created successfully", true);
-        // path = pathresolver(path);
-        change_dir(path);
     }
 }
 
@@ -392,6 +391,7 @@ void delete_file(string path)
     {
         if (!remove(path.c_str()))
         {
+            getAllFiles(cwd);
             printoutput("File deleted successfully", true);
         }
         else
@@ -756,11 +756,13 @@ void copyexec()
         if (checkDir(sourcepath))
         {
             copy_dir(sourcepath, destination);
+            getAllFiles(cwd);
             printoutput("Directory copied successfully", true);
         }
         else
         {
             copy_file(sourcepath, destination);
+            getAllFiles(cwd);
             printoutput("File copied successfully", true);
         }
     }
@@ -795,12 +797,16 @@ void moveexec()
         if (checkDir(sourcepath))
         {
             move_dir(sourcepath, destination);
+            getAllFiles(cwd);
             printoutput("Directory moved successfully", true);
         }
         else
         {
             if (rename_file(sourcepath, destination))
+            {
+                getAllFiles(cwd);
                 printoutput("File moved successfully", true);
+            }
             else
                 printoutput("File couldn't moved", false);
         }
@@ -822,7 +828,10 @@ void renameexec()
     newname = origpath + "/" + newname;
 
     if (rename_file(pth, newname))
+    {
+        getAllFiles(cwd);
         printoutput("Rename operation sucessful", true);
+    }
     else
         printoutput("Rename operation failed", false);
 }
@@ -902,6 +911,7 @@ void delete_direxec()
     else
     {
         remove_dir(path);
+        getAllFiles(cwd);
         printoutput("Directory deleted successfully", true);
     }
 }
