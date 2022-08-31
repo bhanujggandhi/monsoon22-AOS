@@ -999,12 +999,14 @@ void commandexec()
     }
     else if (task == "goto")
     {
+        backstk.push(cwd);
         if (change_dir(cmdkeys[1]))
         {
             printoutput("Directory changed successfully", true);
         }
         else
         {
+            backstk.pop();
             printoutput("Invalid directory path", false);
         }
     }
