@@ -267,6 +267,32 @@ void printfiles()
     move_cursor(E.cur_x, 1);
 }
 
+string formatSize(long long size)
+{
+    string output = "";
+    if (1024 * 1024 * 1024 < size)
+    {
+        output += to_string((size / (1024 * 1024 * 1024)));
+        output += "G";
+    }
+    else if (1024 * 1024 < size)
+    {
+        output += to_string((size / (1024 * 1024)));
+        output += "M";
+    }
+    else if (1024 < size)
+    {
+        output += to_string((size / 1024));
+        output += "K";
+    }
+    else if (1024 > size)
+    {
+        output += to_string(size);
+        output += "B";
+    }
+    return output;
+}
+
 void getAllFiles(string path)
 {
     getWindowSize(&E.maxRows, &E.maxCols);
@@ -295,7 +321,8 @@ void getAllFiles(string path)
                 currfile.permission = getPermissions(sb);
                 currfile.user = getpwuid(sb.st_uid)->pw_name;
                 currfile.group = getgrgid(sb.st_gid)->gr_name;
-                currfile.size = (sb.st_size >= 1024 ? to_string(sb.st_size / 1024) + "K" : to_string(sb.st_size) + "B");
+
+                currfile.size = formatSize(sb.st_size);
                 currfile.name = dir->d_name;
                 currfile.path = curr_path;
                 char t[50] = "";
