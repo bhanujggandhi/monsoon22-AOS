@@ -49,7 +49,7 @@ struct filestr
 };
 
 vector<filestr> filesarr;
-string cwd;
+string CWD;
 string HOME;
 
 stack<string> backstk;
@@ -255,7 +255,7 @@ void printfiles()
 
     // E.cx = 1;
     // E.cy = 0;
-    change_statusbar("--Normal Mode--  " + cwd, -2);
+    change_statusbar("--Normal Mode--  " + CWD, -2);
     // change_statusbar(cwd, 1);
     move_cursor(E.cur_x, 1);
 }
@@ -315,7 +315,7 @@ void create_file(string path, string filename)
         printoutput("Failed to create the file", false);
     else
     {
-        getAllFiles(cwd);
+        getAllFiles(CWD);
         printoutput("File created successfully", true);
     }
 }
@@ -332,7 +332,7 @@ void delete_file(string path)
     {
         if (!remove(path.c_str()))
         {
-            getAllFiles(cwd);
+            getAllFiles(CWD);
             printoutput("File deleted successfully", true);
         }
         else
@@ -397,8 +397,8 @@ bool checkDir(string path)
 void getcurrdir()
 {
     char buf[100];
-    cwd = getcwd(buf, 100);
-    cwd += "/";
+    CWD = getcwd(buf, 100);
+    CWD += "/";
 }
 
 void getHomeDir()
@@ -421,7 +421,7 @@ bool change_dir(const string path)
     }
     init();
     getcurrdir();
-    getAllFiles(cwd);
+    getAllFiles(CWD);
     return true;
 }
 
@@ -432,7 +432,7 @@ void make_dir(const string path, string foldername)
 
     if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
-        getAllFiles(cwd);
+        getAllFiles(CWD);
         printoutput("Folder created successfully", true);
     }
     else
@@ -565,7 +565,7 @@ void move_dir(const string source, const string destination)
 void resizehandler(int t)
 {
     init();
-    getAllFiles(cwd);
+    getAllFiles(CWD);
 }
 
 void exitfunc()
@@ -644,9 +644,9 @@ void downkey()
 
 void goto_parent_dir()
 {
-    backstk.push(cwd);
+    backstk.push(CWD);
     change_dir("..");
-    getAllFiles(cwd);
+    getAllFiles(CWD);
 }
 
 void enter()
@@ -661,14 +661,14 @@ void enter()
         }
         else if (f.path == "..")
         {
-            backstk.push(cwd);
+            backstk.push(CWD);
             goto_parent_dir();
         }
         else
         {
-            backstk.push(cwd);
+            backstk.push(CWD);
             change_dir(f.path);
-            getAllFiles(cwd);
+            getAllFiles(CWD);
         }
     }
     else
@@ -679,7 +679,7 @@ void enter()
             execl("/usr/bin/xdg-open", "xdg-open", f.path.c_str(), (char *)0);
             exit(1);
         }
-        getAllFiles(cwd);
+        getAllFiles(CWD);
     }
 }
 
@@ -689,10 +689,10 @@ void goback()
         return;
     else
     {
-        forwardstk.push(cwd);
+        forwardstk.push(CWD);
         change_dir(backstk.top());
         backstk.pop();
-        getAllFiles(cwd);
+        getAllFiles(CWD);
     }
 }
 
@@ -702,18 +702,18 @@ void goforward()
         return;
     else
     {
-        backstk.push(cwd);
+        backstk.push(CWD);
         change_dir(forwardstk.top());
         forwardstk.pop();
-        getAllFiles(cwd);
+        getAllFiles(CWD);
     }
 }
 
 void goHome()
 {
-    backstk.push(cwd);
+    backstk.push(CWD);
     change_dir(HOME);
-    getAllFiles(cwd);
+    getAllFiles(CWD);
 }
 
 // ----------------- Command Mode -----------------------
@@ -729,7 +729,7 @@ void clearcommandline()
 void exitcommandmode()
 {
     clearcommandline();
-    change_statusbar("--Normal Mode--  " + cwd, -2);
+    change_statusbar("--Normal Mode--  " + CWD, -2);
     init();
     move_cursor(E.cur_x, 1);
 }
@@ -763,13 +763,13 @@ void copyexec()
         if (checkDir(sourcepath))
         {
             copy_dir(sourcepath, destination);
-            getAllFiles(cwd);
+            getAllFiles(CWD);
             printoutput("Directory copied successfully", true);
         }
         else
         {
             copy_file(sourcepath, destination);
-            getAllFiles(cwd);
+            getAllFiles(CWD);
             printoutput("File copied successfully", true);
         }
     }
@@ -804,14 +804,14 @@ void moveexec()
         if (checkDir(sourcepath))
         {
             move_dir(sourcepath, destination);
-            getAllFiles(cwd);
+            getAllFiles(CWD);
             printoutput("Directory moved successfully", true);
         }
         else
         {
             if (rename_file(sourcepath, destination))
             {
-                getAllFiles(cwd);
+                getAllFiles(CWD);
                 printoutput("File moved successfully", true);
             }
             else
@@ -836,7 +836,7 @@ void renameexec()
 
     if (rename_file(pth, newname))
     {
-        getAllFiles(cwd);
+        getAllFiles(CWD);
         printoutput("Rename operation sucessful", true);
     }
     else
@@ -918,7 +918,7 @@ void delete_direxec()
     else
     {
         remove_dir(path);
-        getAllFiles(cwd);
+        getAllFiles(CWD);
         printoutput("Directory deleted successfully", true);
     }
 }
@@ -1016,7 +1016,7 @@ void commandexec()
     }
     else if (task == "goto")
     {
-        backstk.push(cwd);
+        backstk.push(CWD);
         if (change_dir(cmdkeys[1]))
         {
             printoutput("Directory changed successfully", true);
@@ -1029,7 +1029,7 @@ void commandexec()
     }
     else if (task == "search")
     {
-        int output = searchexec(cwd);
+        int output = searchexec(CWD);
         if (output == 1)
             printoutput("True", true);
         else if (output == 0)
@@ -1055,7 +1055,7 @@ void commandexec()
 
 void commandmode()
 {
-    change_statusbar("--Command Mode--  " + cwd, -2);
+    change_statusbar("--Command Mode--  " + CWD, -2);
     move_cursor(E.maxRows + 3, 1);
 
     int col = 1;
@@ -1114,7 +1114,7 @@ int main()
     init();
     getHomeDir();
     getcurrdir();
-    getAllFiles(cwd);
+    getAllFiles(CWD);
     signal(SIGWINCH, resizehandler);
 
     enableNormalMode();
