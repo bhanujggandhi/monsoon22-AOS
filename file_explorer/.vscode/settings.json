@@ -2,7 +2,10 @@
   "files.associations": {
     "iomanip": "cpp",
     "iostream": "cpp",
-    "ranges": "cpp"
+    "ranges": "cpp",
+    "deque": "cpp",
+    "string": "cpp",
+    "vector": "cpp"
   },
   "C_Cpp.errorSquiggles": "Disabled"
 }

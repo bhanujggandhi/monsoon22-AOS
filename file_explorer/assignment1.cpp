@@ -164,7 +164,14 @@ void splitcommads(string str, char del)
     for (int i = 0; i < str.size(); i++)
     {
         if (str[i] != del)
+        {
+            if (str[i] == '\\')
+            {
+                temp += str[i + 1];
+                i += 2;
+            }
             temp += str[i];
+        }
         else
         {
             cmdkeys.push_back(temp);
@@ -222,11 +229,11 @@ string getPermissions(struct stat &_sb)
 
 void printfiles()
 {
-    int pw = 13;
-    int ugw = 18;
-    int lmw = 20;
-    int sw = 8;
-    int nw = 13;
+    int pw = 9;
+    int ugw = 13;
+    int lmw = 17;
+    int sw = 4;
+    // int nw = 13;
     char f = ' ';
     string directorytext = "\033[1;34m";
     string exectext = "\033[1;32m";
@@ -239,11 +246,11 @@ void printfiles()
 
     for (int i = E.file_start; i < end + E.file_start; i++)
     {
-        cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
-        cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
-        cout << left << setw(ugw) << setfill(f) << filesarr[i].group;
-        cout << left << setw(sw) << setfill(f) << filesarr[i].size;
-        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
+        cout << left << setw(pw) << setfill(f) << filesarr[i].permission << "   ";
+        cout << left << setw(ugw) << setfill(f) << filesarr[i].user << "   ";
+        cout << left << setw(ugw) << setfill(f) << filesarr[i].group << "   ";
+        cout << left << setw(sw) << setfill(f) << filesarr[i].size << "   ";
+        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified << "   ";
         if (filesarr[i].permission[0] == 'd')
             cout << left << setfill(f) << directorytext << filesarr[i].name << normaltext;
         else if (filesarr[i].permission[3] == 'x')
@@ -1012,7 +1019,7 @@ void commandexec()
     }
     else if (task == "delete_dir")
     {
-        // delete_direxec();
+        delete_direxec();
     }
     else if (task == "goto")
     {
@@ -1020,6 +1027,7 @@ void commandexec()
         if (change_dir(cmdkeys[1]))
         {
             printoutput("Directory changed successfully", true);
+            change_statusbar("--Command Mode--  " + CWD, -2);
         }
         else
         {
@@ -1154,7 +1162,6 @@ int main()
             commandmode();
             break;
         default:
-            // cout << t << endl;
             break;
         }
     }
