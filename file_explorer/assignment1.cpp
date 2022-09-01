@@ -1,3 +1,4 @@
+// To inclde stdlibs and STL
 #include <bits/stdc++.h>
 
 // Terminal utility
@@ -57,15 +58,13 @@ stack<string> forwardstk;
 string keys = "";
 vector<string> cmdkeys;
 
-void clear_screen()
+// -------- Terminal Utilities --------------
+void init()
 {
-    // cout << "\033[H\033[2J\033[3J";
-    cout << "\033[H\033[2J";
-}
-
-void clear_currline()
-{
-    cout << "\033[2K";
+    E.cur_x = 1;
+    E.cur_y = 1;
+    E.file_idx = 0;
+    E.file_start = 0;
 }
 
 int getWindowSize(int *rows, int *cols)
@@ -81,6 +80,17 @@ int getWindowSize(int *rows, int *cols)
         *rows = ws.ws_row - 4;
         return 0;
     }
+}
+
+void clear_screen()
+{
+    // cout << "\033[H\033[2J\033[3J";
+    cout << "\033[H\033[2J";
+}
+
+void clear_currline()
+{
+    cout << "\033[2K";
 }
 
 void move_cursor(int row, int col)
@@ -105,6 +115,7 @@ void printoutput(const string msg, bool status)
         cout << "\033[1;31m" << msg << "\033[0m";
 }
 
+// ----------------- Path Utilities -----------------
 void splitutility(string str, char del, vector<string> &pth)
 {
     string temp = "";
@@ -144,23 +155,6 @@ string splittoprev(string str, char del)
     }
 
     return finalpath.substr(1);
-}
-
-bool checkDir(string path)
-{
-    struct stat sb;
-    if (stat(path.c_str(), &sb) == -1)
-    {
-        printoutput("Directory could not opened", false);
-        return false;
-    }
-    else
-    {
-        if ((S_ISDIR(sb.st_mode)))
-            return true;
-        else
-            return false;
-    }
 }
 
 void splitcommads(string str, char del)
@@ -203,34 +197,28 @@ string pathresolver(string path)
     return resolvedpath;
 }
 
-void init()
-{
-    E.cur_x = 1;
-    E.cur_y = 1;
-    E.file_idx = 0;
-    E.file_start = 0;
-}
-
-//-------------- Directory Utility Functions ------------------------
-void getcurrdir()
-{
-    char buf[100];
-    cwd = getcwd(buf, 100);
-    cwd += "/";
-}
-
-void getHomeDir()
-{
-    const char *h;
-    if ((h = getenv("HOME")) == NULL)
-    {
-        h = getpwuid(getuid())->pw_dir;
-    }
-
-    HOME = h;
-}
+// ----------------- Files Utility -------------------
 
 bool files_sort(filestr const &lhs, filestr const &rhs) { return lhs.name < rhs.name; }
+
+string getPermissions(struct stat &_sb)
+{
+    string permission = "";
+    mode_t perm = _sb.st_mode;
+
+    permission += (S_ISDIR(perm)) ? 'd' : '-';
+    permission += (perm & S_IRUSR) ? 'r' : '-';
+    permission += (perm & S_IWUSR) ? 'w' : '-';
+    permission += (perm & S_IXUSR) ? 'x' : '-';
+    permission += (perm & S_IRGRP) ? 'r' : '-';
+    permission += (perm & S_IWGRP) ? 'w' : '-';
+    permission += (perm & S_IXGRP) ? 'x' : '-';
+    permission += (perm & S_IROTH) ? 'r' : '-';
+    permission += (perm & S_IWOTH) ? 'w' : '-';
+    permission += (perm & S_IXOTH) ? 'x' : '-';
+
+    return permission;
+}
 
 void printfiles()
 {
@@ -270,25 +258,6 @@ void printfiles()
     change_statusbar("--Normal Mode--  " + cwd, -2);
     // change_statusbar(cwd, 1);
     move_cursor(E.cur_x, 1);
-}
-
-string getPermissions(struct stat &_sb)
-{
-    string permission = "";
-    mode_t perm = _sb.st_mode;
-
-    permission += (S_ISDIR(perm)) ? 'd' : '-';
-    permission += (perm & S_IRUSR) ? 'r' : '-';
-    permission += (perm & S_IWUSR) ? 'w' : '-';
-    permission += (perm & S_IXUSR) ? 'x' : '-';
-    permission += (perm & S_IRGRP) ? 'r' : '-';
-    permission += (perm & S_IWGRP) ? 'w' : '-';
-    permission += (perm & S_IXGRP) ? 'x' : '-';
-    permission += (perm & S_IROTH) ? 'r' : '-';
-    permission += (perm & S_IWOTH) ? 'w' : '-';
-    permission += (perm & S_IXOTH) ? 'x' : '-';
-
-    return permission;
 }
 
 void getAllFiles(string path)
@@ -337,34 +306,6 @@ void getAllFiles(string path)
     closedir(curr_dir);
 }
 
-bool change_dir(const string path)
-{
-    string p = pathresolver(path);
-    if (chdir(p.c_str()))
-    {
-        return false;
-    }
-    init();
-    getcurrdir();
-    getAllFiles(cwd);
-    return true;
-}
-
-void make_dir(const string path, string foldername)
-{
-
-    foldername = path + "/" + foldername;
-
-    if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
-    {
-        getAllFiles(cwd);
-        printoutput("Folder created successfully", true);
-    }
-    else
-        printoutput("Failed to create dir", false);
-}
-
-//------------------ File Utilities ------------------------
 void create_file(string path, string filename)
 {
 
@@ -397,6 +338,105 @@ void delete_file(string path)
         else
             printoutput("Failed to delete the file", false);
     }
+}
+
+void copy_file(const string source, const string destination)
+{
+    int s = open(source.c_str(), O_RDONLY);
+    int d;
+    char buf[BUFSIZ];
+    if (s == -1)
+    {
+        printoutput("Source file cannot be opened", false);
+        close(s);
+        return;
+    }
+    d = open(destination.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    if (d == -1)
+    {
+        printoutput("Destination file cannot be opened", false);
+        close(d);
+        close(s);
+        return;
+    }
+
+    size_t size;
+    while ((size = read(s, buf, BUFSIZ)) > 0)
+    {
+        write(d, buf, size);
+    }
+    close(d);
+    close(s);
+}
+
+bool rename_file(const string path, const string newpath)
+{
+    return !(rename(path.c_str(), newpath.c_str()));
+}
+
+//-------------- Directory Utility ------------------------
+
+bool checkDir(string path)
+{
+    struct stat sb;
+    if (stat(path.c_str(), &sb) == -1)
+    {
+        printoutput("Directory could not opened", false);
+        return false;
+    }
+    else
+    {
+        if ((S_ISDIR(sb.st_mode)))
+            return true;
+        else
+            return false;
+    }
+}
+
+void getcurrdir()
+{
+    char buf[100];
+    cwd = getcwd(buf, 100);
+    cwd += "/";
+}
+
+void getHomeDir()
+{
+    const char *h;
+    if ((h = getenv("HOME")) == NULL)
+    {
+        h = getpwuid(getuid())->pw_dir;
+    }
+
+    HOME = h;
+}
+
+bool change_dir(const string path)
+{
+    string p = pathresolver(path);
+    if (chdir(p.c_str()))
+    {
+        return false;
+    }
+    init();
+    getcurrdir();
+    getAllFiles(cwd);
+    return true;
+}
+
+void make_dir(const string path, string foldername)
+{
+
+    foldername = path + "/" + foldername;
+
+    if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
+    {
+        getAllFiles(cwd);
+        printoutput("Folder created successfully", true);
+    }
+    else
+        printoutput("Failed to create dir", false);
 }
 
 void remove_dir(string path)
@@ -434,36 +474,6 @@ void remove_dir(string path)
         rmdir(path.c_str());
     }
     closedir(dir);
-}
-
-void copy_file(const string source, const string destination)
-{
-    int s = open(source.c_str(), O_RDONLY);
-    int d;
-    char buf[BUFSIZ];
-    if (s == -1)
-    {
-        printoutput("Source file cannot be opened", false);
-        close(s);
-        return;
-    }
-    d = open(destination.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-    if (d == -1)
-    {
-        printoutput("Destination file cannot be opened", false);
-        close(d);
-        close(s);
-        return;
-    }
-
-    size_t size;
-    while ((size = read(s, buf, BUFSIZ)) > 0)
-    {
-        write(d, buf, size);
-    }
-    close(d);
-    close(s);
 }
 
 void copy_dir(const string source, const string destination)
@@ -507,11 +517,6 @@ void copy_dir(const string source, const string destination)
     }
 }
 
-bool rename_file(const string path, const string newpath)
-{
-    return !(rename(path.c_str(), newpath.c_str()));
-}
-
 void move_dir(const string source, const string destination)
 {
     if (!mkdir(destination.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
@@ -553,6 +558,20 @@ void move_dir(const string source, const string destination)
     {
         printoutput("Error in creating new directory", false);
     }
+}
+
+// ------------------ Clean up -------------
+
+void resizehandler(int t)
+{
+    init();
+    getAllFiles(cwd);
+}
+
+void exitfunc()
+{
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
+    clear_screen();
 }
 
 // -------------------Normal Mode----------------
@@ -695,18 +714,6 @@ void goHome()
     backstk.push(cwd);
     change_dir(HOME);
     getAllFiles(cwd);
-}
-
-void resizehandler(int t)
-{
-    init();
-    getAllFiles(cwd);
-}
-
-void exitfunc()
-{
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios);
-    clear_screen();
 }
 
 // ----------------- Command Mode -----------------------
@@ -1100,6 +1107,8 @@ void commandmode()
     }
 }
 
+// --------------- Driver Code -------------
+
 int main()
 {
     init();
@@ -1145,7 +1154,7 @@ int main()
             commandmode();
             break;
         default:
-            // cout << t << "   " << ch << "   ";
+            // cout << t << endl;
             break;
         }
     }
