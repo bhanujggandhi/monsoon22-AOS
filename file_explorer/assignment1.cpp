@@ -359,6 +359,7 @@ void create_file(string path, string filename)
     else
     {
         getAllFiles(CWD);
+        change_statusbar("--Command Mode--  " + CWD, -2);
         printoutput("File created successfully", true);
     }
 }
@@ -376,6 +377,7 @@ void delete_file(string path)
         if (!remove(path.c_str()))
         {
             getAllFiles(CWD);
+            change_statusbar("--Command Mode--  " + CWD, -2);
             printoutput("File deleted successfully", true);
         }
         else
@@ -476,6 +478,7 @@ void make_dir(const string path, string foldername)
     if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
         getAllFiles(CWD);
+        change_statusbar("--Command Mode--  " + CWD, -2);
         printoutput("Folder created successfully", true);
     }
     else
@@ -810,12 +813,14 @@ void copyexec()
         {
             copy_dir(sourcepath, destination);
             getAllFiles(CWD);
+            change_statusbar("--Command Mode--  " + CWD, -2);
             printoutput("Directory copied successfully", true);
         }
         else
         {
             copy_file(sourcepath, destination);
             getAllFiles(CWD);
+            change_statusbar("--Command Mode--  " + CWD, -2);
             printoutput("File copied successfully", true);
         }
     }
@@ -851,6 +856,7 @@ void moveexec()
         {
             move_dir(sourcepath, destination);
             getAllFiles(CWD);
+            change_statusbar("--Command Mode--  " + CWD, -2);
             printoutput("Directory moved successfully", true);
         }
         else
@@ -858,6 +864,7 @@ void moveexec()
             if (rename_file(sourcepath, destination))
             {
                 getAllFiles(CWD);
+                change_statusbar("--Command Mode--  " + CWD, -2);
                 printoutput("File moved successfully", true);
             }
             else
@@ -883,6 +890,7 @@ void renameexec()
     if (rename_file(pth, newname))
     {
         getAllFiles(CWD);
+        change_statusbar("--Command Mode--  " + CWD, -2);
         printoutput("Rename operation sucessful", true);
     }
     else
@@ -965,6 +973,7 @@ void delete_direxec()
     {
         remove_dir(path);
         getAllFiles(CWD);
+        change_statusbar("--Command Mode--  " + CWD, -2);
         printoutput("Directory deleted successfully", true);
     }
 }
