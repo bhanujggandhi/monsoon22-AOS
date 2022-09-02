@@ -57,63 +57,7 @@ stack<string> forwardstk;
 
 string keys = "";
 vector<string> cmdkeys;
-
-// -------- Terminal Utilities --------------
-void init()
-{
-    E.cur_x = 1;
-    E.cur_y = 1;
-    E.file_idx = 0;
-    E.file_start = 0;
-}
-
-int getWindowSize(int *rows, int *cols)
-{
-    struct winsize ws;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
-    {
-        return -1;
-    }
-    else
-    {
-        *cols = ws.ws_col;
-        *rows = ws.ws_row - 4;
-        return 0;
-    }
-}
-
-void clear_screen()
-{
-    // cout << "\033[H\033[2J\033[3J";
-    cout << "\033[H\033[2J";
-}
-
-void clear_currline()
-{
-    cout << "\033[2K";
-}
-
-void move_cursor(int row, int col)
-{
-    cout << "\033[" << row << ";" << col << "H";
-}
-
-void change_statusbar(string s, int bottom)
-{
-    move_cursor(E.maxRows - bottom, 1);
-    clear_currline();
-    cout << "\033[1;7m" << s << "\033[0m";
-}
-
-void printoutput(const string msg, bool status)
-{
-    move_cursor(E.maxRows + 4, 1);
-    clear_currline();
-    if (status)
-        cout << "\033[1;32m" << msg << "\033[0m";
-    else
-        cout << "\033[1;31m" << msg << "\033[0m";
-}
+bool mode = false;
 
 // ----------------- Path Utilities -----------------
 void splitutility(string str, char del, vector<string> &pth)
@@ -182,6 +126,14 @@ void splitcommads(string str, char del)
     cmdkeys.push_back(temp);
 }
 
+string getCurrDirFromPath(string str, char del)
+{
+    vector<string> pth;
+    splitutility(str, del, pth);
+
+    return pth[pth.size() - 2];
+}
+
 string pathresolver(string path)
 {
     if (path[0] == '~')
@@ -202,6 +154,70 @@ string pathresolver(string path)
     }
 
     return resolvedpath;
+}
+
+// -------- Terminal Utilities --------------
+void init()
+{
+    E.cur_x = 1;
+    E.cur_y = 1;
+    E.file_idx = 0;
+    E.file_start = 0;
+}
+
+int getWindowSize(int *rows, int *cols)
+{
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
+    {
+        return -1;
+    }
+    else
+    {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row - 4;
+        return 0;
+    }
+}
+
+void clear_screen()
+{
+    // cout << "\033[H\033[2J\033[3J";
+    cout << "\033[H\033[2J";
+}
+
+void clear_currline()
+{
+    cout << "\033[2K";
+}
+
+void move_cursor(int row, int col)
+{
+    cout << "\033[" << row << ";" << col << "H";
+}
+
+void change_statusbar(string mode, string s, int bottom)
+{
+    move_cursor(E.maxRows - bottom, 1);
+    clear_currline();
+    if ((s.size() + mode.size()) > E.maxCols)
+    {
+        cout << "\033[1;7m" << mode + getCurrDirFromPath(s, '/') << "\033[0m";
+    }
+    else
+    {
+        cout << "\033[1;7m" << mode + s << "\033[0m";
+    }
+}
+
+void printoutput(const string msg, bool status)
+{
+    move_cursor(E.maxRows + 4, 1);
+    clear_currline();
+    if (status)
+        cout << "\033[1;32m" << msg << "\033[0m";
+    else
+        cout << "\033[1;31m" << msg << "\033[0m";
 }
 
 // ----------------- Files Utility -------------------
@@ -301,7 +317,7 @@ void printfiles()
 
     // E.cx = 1;
     // E.cy = 0;
-    change_statusbar("--Normal Mode--  " + CWD, -2);
+    change_statusbar("--Normal Mode--  ", CWD, -2);
     // change_statusbar(cwd, 1);
     move_cursor(E.cur_x, 1);
 }
@@ -398,7 +414,7 @@ void create_file(string path, string filename)
     else
     {
         getAllFiles(CWD);
-        change_statusbar("--Command Mode--  " + CWD, -2);
+        change_statusbar("--Command Mode--  ", CWD, -2);
         printoutput("File created successfully", true);
     }
 }
@@ -416,7 +432,7 @@ void delete_file(string path)
         if (!remove(path.c_str()))
         {
             getAllFiles(CWD);
-            change_statusbar("--Command Mode--  " + CWD, -2);
+            change_statusbar("--Command Mode--  ", CWD, -2);
             printoutput("File deleted successfully", true);
         }
         else
@@ -517,7 +533,7 @@ void make_dir(const string path, string foldername)
     if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
     {
         getAllFiles(CWD);
-        change_statusbar("--Command Mode--  " + CWD, -2);
+        change_statusbar("--Command Mode--  ", CWD, -2);
         printoutput("Folder created successfully", true);
     }
     else
@@ -654,6 +670,11 @@ void resizehandler(int t)
 {
     init();
     getAllFiles(CWD);
+    if (mode)
+    {
+        change_statusbar("--Command Mode--  ", CWD, -2);
+        move_cursor(E.maxRows + 3, 1);
+    }
 }
 
 void exitfunc()
@@ -817,7 +838,8 @@ void clearcommandline()
 void exitcommandmode()
 {
     clearcommandline();
-    change_statusbar("--Normal Mode--  " + CWD, -2);
+    mode = false;
+    change_statusbar("--Normal Mode--  ", CWD, -2);
     init();
     move_cursor(E.cur_x, 1);
 }
@@ -852,14 +874,14 @@ void copyexec()
         {
             copy_dir(sourcepath, destination);
             getAllFiles(CWD);
-            change_statusbar("--Command Mode--  " + CWD, -2);
+            change_statusbar("--Command Mode--  ", CWD, -2);
             printoutput("Directory copied successfully", true);
         }
         else
         {
             copy_file(sourcepath, destination);
             getAllFiles(CWD);
-            change_statusbar("--Command Mode--  " + CWD, -2);
+            change_statusbar("--Command Mode--  ", CWD, -2);
             printoutput("File copied successfully", true);
         }
     }
@@ -895,7 +917,7 @@ void moveexec()
         {
             move_dir(sourcepath, destination);
             getAllFiles(CWD);
-            change_statusbar("--Command Mode--  " + CWD, -2);
+            change_statusbar("--Command Mode--  ", CWD, -2);
             printoutput("Directory moved successfully", true);
         }
         else
@@ -903,7 +925,7 @@ void moveexec()
             if (rename_file(sourcepath, destination))
             {
                 getAllFiles(CWD);
-                change_statusbar("--Command Mode--  " + CWD, -2);
+                change_statusbar("--Command Mode--  ", CWD, -2);
                 printoutput("File moved successfully", true);
             }
             else
@@ -929,7 +951,7 @@ void renameexec()
     if (rename_file(pth, newname))
     {
         getAllFiles(CWD);
-        change_statusbar("--Command Mode--  " + CWD, -2);
+        change_statusbar("--Command Mode--  ", CWD, -2);
         printoutput("Rename operation sucessful", true);
     }
     else
@@ -1012,7 +1034,7 @@ void delete_direxec()
     {
         remove_dir(path);
         getAllFiles(CWD);
-        change_statusbar("--Command Mode--  " + CWD, -2);
+        change_statusbar("--Command Mode--  ", CWD, -2);
         printoutput("Directory deleted successfully", true);
     }
 }
@@ -1114,7 +1136,7 @@ void commandexec()
         if (change_dir(cmdkeys[1]))
         {
             printoutput("Directory changed successfully", true);
-            change_statusbar("--Command Mode--  " + CWD, -2);
+            change_statusbar("--Command Mode--  ", CWD, -2);
         }
         else
         {
@@ -1150,8 +1172,9 @@ void commandexec()
 
 void commandmode()
 {
-    change_statusbar("--Command Mode--  " + CWD, -2);
+    change_statusbar("--Command Mode--  ", CWD, -2);
     move_cursor(E.maxRows + 3, 1);
+    mode = true;
 
     int col = 1;
     char ch;
@@ -1246,6 +1269,7 @@ int main()
             goHome();
             break;
         case 58:
+            mode = true;
             commandmode();
             break;
         default:
