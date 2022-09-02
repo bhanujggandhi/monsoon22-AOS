@@ -303,7 +303,9 @@ void getAllFiles(string path)
 
     if (curr_dir == NULL)
     {
-        cout << "Directory could not be opened" << endl;
+        string err(strerror(errno));
+        printoutput(err, false);
+        return;
     }
     else
     {
@@ -314,7 +316,11 @@ void getAllFiles(string path)
             curr_path = path + curr_path;
 
             if (stat(curr_path.c_str(), &sb))
-                cout << "Permission Denied" << endl;
+            {
+                string err(strerror(errno));
+                printoutput(err, false);
+                return;
+            }
             else
             {
 
@@ -334,8 +340,11 @@ void getAllFiles(string path)
             }
         }
 
-        sort(filesarr.begin(), filesarr.end(), &files_sort);
-        printfiles();
+        if (filesarr.size() > 0)
+        {
+            sort(filesarr.begin(), filesarr.end(), &files_sort);
+            printfiles();
+        }
     }
     closedir(curr_dir);
 }
@@ -483,7 +492,8 @@ void remove_dir(string path)
 
     if (dir == NULL)
     {
-        printoutput("Error in opening source directory", false);
+        string err(strerror(errno));
+        printoutput(err, false);
     }
     else
     {
@@ -520,7 +530,8 @@ void copy_dir(const string source, const string destination)
         dir = opendir(source.c_str());
         if (dir == NULL)
         {
-            printoutput("Error in opening source directory", false);
+            string err(strerror(errno));
+            printoutput(err, false);
         }
         else
         {
@@ -561,7 +572,8 @@ void move_dir(const string source, const string destination)
         dir = opendir(source.c_str());
         if (dir == NULL)
         {
-            printoutput("Error in opening source directory", false);
+            string err(strerror(errno));
+            printoutput(err, false);
         }
         else
         {

@@ -10,6 +10,7 @@
     "mutex": "cpp",
     "shared_mutex": "cpp",
     "regex": "cpp",
-    "string_view": "cpp"
+    "string_view": "cpp",
+    "random": "cpp"
   }
 }
