@@ -229,11 +229,10 @@ string getPermissions(struct stat &_sb)
 
 void printfiles()
 {
-    int pw = 12;
-    int ugw = 16;
-    int lmw = 20;
-    int sw = 7;
-    // int nw = 13;
+    int cfac = (E.maxCols - 6) / 6;
+    int sw = 6;
+    int nw = (E.maxCols - 6) / 3;
+
     char f = ' ';
     string directorytext = "\033[1;34m";
     string exectext = "\033[1;32m";
@@ -246,17 +245,57 @@ void printfiles()
 
     for (int i = E.file_start; i < end + E.file_start; i++)
     {
-        cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
-        cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
-        cout << left << setw(ugw) << setfill(f) << filesarr[i].group;
-        cout << left << setw(sw) << setfill(f) << filesarr[i].size;
-        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
-        if (filesarr[i].permission[0] == 'd')
-            cout << left << setfill(f) << directorytext << filesarr[i].name << normaltext;
-        else if (filesarr[i].permission[3] == 'x')
-            cout << left << setfill(f) << exectext << filesarr[i].name << normaltext;
+        if (filesarr[i].permission.size() > cfac)
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].permission.substr(0, cfac - 4) + "..";
+        }
         else
-            cout << left << setfill(f) << filesarr[i].name;
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].permission;
+        }
+        if (filesarr[i].user.size() > cfac)
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].user.substr(0, cfac - 4) + "..";
+        }
+        else
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].user;
+        }
+        if (filesarr[i].group.size() > E.maxCols / 6)
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].group.substr(0, cfac - 4) + "..";
+        }
+        else
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].group;
+        }
+        cout << left << setw(sw) << setfill(f) << filesarr[i].size;
+        if (filesarr[i].lastmodified.size() > cfac)
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].lastmodified.substr(0, cfac - 4) + "..";
+        }
+        else
+        {
+            cout << left << setw(cfac) << setfill(f) << filesarr[i].lastmodified;
+        }
+        if (filesarr[i].name.size() > nw)
+        {
+            if (filesarr[i].permission[0] == 'd')
+                cout << left << setw(nw) << setfill(f) << directorytext + filesarr[i].name.substr(0, nw - 4) + ".." + normaltext;
+            else if (filesarr[i].permission[3] == 'x')
+                cout << left << setw(nw) << setfill(f) << exectext + filesarr[i].name.substr(0, nw - 4) + ".." + normaltext;
+            else
+                cout << left << setw(nw) << setfill(f) << filesarr[i].name.substr(0, nw - 4) + "..";
+        }
+        else
+        {
+            if (filesarr[i].permission[0] == 'd')
+                cout << left << setw(nw) << setfill(f) << directorytext + filesarr[i].name + normaltext;
+            else if (filesarr[i].permission[3] == 'x')
+                cout << left << setw(nw) << setfill(f) << exectext + filesarr[i].name + normaltext;
+            else
+                cout << left << setw(nw) << setfill(f) << filesarr[i].name;
+        }
         cout << "\r\n";
     }
 
