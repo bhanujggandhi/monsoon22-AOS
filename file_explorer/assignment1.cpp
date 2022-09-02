@@ -229,10 +229,10 @@ string getPermissions(struct stat &_sb)
 
 void printfiles()
 {
-    int pw = 9;
-    int ugw = 13;
-    int lmw = 17;
-    int sw = 4;
+    int pw = 12;
+    int ugw = 16;
+    int lmw = 20;
+    int sw = 7;
     // int nw = 13;
     char f = ' ';
     string directorytext = "\033[1;34m";
@@ -246,11 +246,11 @@ void printfiles()
 
     for (int i = E.file_start; i < end + E.file_start; i++)
     {
-        cout << left << setw(pw) << setfill(f) << filesarr[i].permission << "   ";
-        cout << left << setw(ugw) << setfill(f) << filesarr[i].user << "   ";
-        cout << left << setw(ugw) << setfill(f) << filesarr[i].group << "   ";
-        cout << left << setw(sw) << setfill(f) << filesarr[i].size << "   ";
-        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified << "   ";
+        cout << left << setw(pw) << setfill(f) << filesarr[i].permission;
+        cout << left << setw(ugw) << setfill(f) << filesarr[i].user;
+        cout << left << setw(ugw) << setfill(f) << filesarr[i].group;
+        cout << left << setw(sw) << setfill(f) << filesarr[i].size;
+        cout << left << setw(lmw) << setfill(f) << filesarr[i].lastmodified;
         if (filesarr[i].permission[0] == 'd')
             cout << left << setfill(f) << directorytext << filesarr[i].name << normaltext;
         else if (filesarr[i].permission[3] == 'x')
