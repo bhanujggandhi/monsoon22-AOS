@@ -157,13 +157,16 @@ string pathresolver(string path)
 }
 
 // -------- Terminal Utilities --------------
-void init()
-{
-    E.cur_x = 1;
-    E.cur_y = 1;
-    E.file_idx = 0;
-    E.file_start = 0;
-}
+// void init()
+// {
+//     E.cur_x = 1;
+//     E.cur_y = 1;
+//     E.file_idx = 0;
+//     E.file_start = 0;
+
+//     move_cursor(E.cur_x, E.cur_y);
+//     clear_screen();
+// }
 
 int getWindowSize(int *rows, int *cols)
 {
@@ -215,9 +218,17 @@ void printoutput(const string msg, bool status)
     move_cursor(E.maxRows + 4, 1);
     clear_currline();
     if (status)
-        cout << "\033[1;32m" << msg << "\033[0m";
+        cout << "\033[1;92m" << msg << "\033[0m";
     else
-        cout << "\033[1;31m" << msg << "\033[0m";
+        cout << "\033[1;91m" << msg << "\033[0m";
+}
+
+void init()
+{
+    E.cur_x = 1;
+    E.cur_y = 1;
+    E.file_idx = 0;
+    E.file_start = 0;
 }
 
 // ----------------- Files Utility -------------------
@@ -250,8 +261,8 @@ void printfiles()
     int nw = (E.maxCols - 6) / 3;
 
     char f = ' ';
-    string directorytext = "\033[1;34m";
-    string exectext = "\033[1;32m";
+    string directorytext = "\033[1;96m";
+    string exectext = "\033[1;92m";
     string normaltext = "\033[0m";
 
     clear_screen();
@@ -460,12 +471,17 @@ void copy_file(const string source, const string destination)
         close(s);
         return;
     }
-
     size_t size;
     while ((size = read(s, buf, BUFSIZ)) > 0)
     {
         write(d, buf, size);
     }
+
+    struct stat st;
+    stat(source.c_str(), &st);
+    chmod(destination.c_str(), st.st_mode);
+    chown(destination.c_str(), st.st_uid, st.st_gid);
+
     close(d);
     close(s);
 }
@@ -482,7 +498,8 @@ bool checkDir(string path)
     struct stat sb;
     if (stat(path.c_str(), &sb) == -1)
     {
-        printoutput("Directory could not opened", false);
+        string err(strerror(errno));
+        printoutput(err, false);
         return false;
     }
     else
@@ -675,6 +692,10 @@ void resizehandler(int t)
         change_statusbar("--Command Mode--  ", CWD, -2);
         move_cursor(E.maxRows + 3, 1);
     }
+    else
+    {
+        move_cursor(E.cur_x, E.cur_y);
+    }
 }
 
 void exitfunc()
@@ -785,11 +806,14 @@ void enter()
         int pid = fork();
         if (pid == 0)
         {
-            execl("/usr/bin/xdg-open", "xdg-open", f.path.c_str(), (char *)0);
+            if (execl("/usr/bin/xdg-open", "xdg-open 2>/dev/null", f.path.c_str(), (char *)0) == -1)
+            {
+                return;
+            }
             exit(1);
         }
-        getAllFiles(CWD);
     }
+    getAllFiles(CWD);
 }
 
 void goback()
@@ -1068,8 +1092,8 @@ int searchexec(string source)
             {
                 if (filename == searchkey)
                 {
-                    return 1;
                     closedir(dir);
+                    return 1;
                 }
                 else
                 {
@@ -1079,8 +1103,8 @@ int searchexec(string source)
                     {
                         if (searchexec(srcfilepath) == 1)
                         {
-                            return 1;
                             closedir(dir);
+                            return 1;
                         }
                     }
                 }
@@ -1169,6 +1193,30 @@ void commandexec()
     move_cursor(E.maxRows + 3, 1);
     keys = "";
 }
+
+// char editorReadKey()
+// {
+//     char ch;
+//     scanf("%c", &ch);
+
+//     if (ch == '\x1b')
+//     {
+//         char seq[3];
+//         if (scanf("%c", &seq[0]) != 1)
+//             return '\x1b';
+//         if (scanf("%c", &seq[1]) != 1)
+//             return '\x1b';
+//         if (seq[0] == '[')
+//         {
+//             return seq[1];
+//         }
+//         return '\x1b';
+//     }
+//     else
+//     {
+//         return ch;
+//     }
+// }
 
 void commandmode()
 {
