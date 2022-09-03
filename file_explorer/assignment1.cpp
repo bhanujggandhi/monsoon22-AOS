@@ -157,16 +157,14 @@ string pathresolver(string path)
 }
 
 // -------- Terminal Utilities --------------
-// void init()
-// {
-//     E.cur_x = 1;
-//     E.cur_y = 1;
-//     E.file_idx = 0;
-//     E.file_start = 0;
 
-//     move_cursor(E.cur_x, E.cur_y);
-//     clear_screen();
-// }
+void init()
+{
+    E.cur_x = 1;
+    E.cur_y = 1;
+    E.file_idx = 0;
+    E.file_start = 0;
+}
 
 int getWindowSize(int *rows, int *cols)
 {
@@ -221,14 +219,6 @@ void printoutput(const string msg, bool status)
         cout << "\033[1;92m" << msg << "\033[0m";
     else
         cout << "\033[1;91m" << msg << "\033[0m";
-}
-
-void init()
-{
-    E.cur_x = 1;
-    E.cur_y = 1;
-    E.file_idx = 0;
-    E.file_start = 0;
 }
 
 // ----------------- Files Utility -------------------
@@ -498,8 +488,8 @@ bool checkDir(string path)
     struct stat sb;
     if (stat(path.c_str(), &sb) == -1)
     {
-        string err(strerror(errno));
-        printoutput(err, false);
+        // string err(strerror(errno));
+        // printoutput(err, false);
         return false;
     }
     else
@@ -629,6 +619,10 @@ void copy_dir(const string source, const string destination)
                 }
             }
         }
+        struct stat st;
+        stat(source.c_str(), &st);
+        chmod(destination.c_str(), st.st_mode);
+        chown(destination.c_str(), st.st_uid, st.st_gid);
         closedir(dir);
     }
     else
@@ -672,6 +666,10 @@ void move_dir(const string source, const string destination)
                 }
             }
         }
+        struct stat st;
+        stat(source.c_str(), &st);
+        chmod(destination.c_str(), st.st_mode);
+        chown(destination.c_str(), st.st_uid, st.st_gid);
         rmdir(source.c_str());
         closedir(dir);
     }
@@ -1080,7 +1078,7 @@ int searchexec(string source)
     dir = opendir(source.c_str());
     if (dir == NULL)
     {
-        printoutput("Error in opening directory", false);
+        // printoutput("Error in opening directory", false);
         return -1;
     }
     else
