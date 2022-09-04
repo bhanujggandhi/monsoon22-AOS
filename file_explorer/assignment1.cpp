@@ -408,15 +408,23 @@ void getAllFiles(string path)
 void create_file(string path, string filename)
 {
 
+    struct stat buf;
     filename = path + "/" + filename;
 
-    if (creat(filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH) == -1)
-        printoutput("Failed to create the file", false);
+    if (stat(filename.c_str(), &buf))
+    {
+        if (creat(filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH) == -1)
+            printoutput("Failed to create the file", false);
+        else
+        {
+            getAllFiles(CWD);
+            change_statusbar("--Command Mode--  ", CWD, -2);
+            printoutput("File created successfully", true);
+        }
+    }
     else
     {
-        getAllFiles(CWD);
-        change_statusbar("--Command Mode--  ", CWD, -2);
-        printoutput("File created successfully", true);
+        printoutput("File already exists", true);
     }
 }
 
@@ -534,17 +542,24 @@ bool change_dir(const string path)
 
 void make_dir(const string path, string foldername)
 {
-
+    struct stat buf;
     foldername = path + "/" + foldername;
 
-    if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
+    if (stat(foldername.c_str(), &buf))
     {
-        getAllFiles(CWD);
-        change_statusbar("--Command Mode--  ", CWD, -2);
-        printoutput("Folder created successfully", true);
+        if (!mkdir(foldername.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
+        {
+            getAllFiles(CWD);
+            change_statusbar("--Command Mode--  ", CWD, -2);
+            printoutput("Directory created successfully", true);
+        }
+        else
+            printoutput("Failed to create dir", false);
     }
     else
-        printoutput("Failed to create dir", false);
+    {
+        printoutput("Directory already exists", true);
+    }
 }
 
 void remove_dir(string path)
