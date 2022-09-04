@@ -51,7 +51,6 @@ struct filestr
 vector<filestr> filesarr;
 string CWD;
 string HOME;
-
 stack<string> backstk;
 stack<string> forwardstk;
 
@@ -183,8 +182,8 @@ int getWindowSize(int *rows, int *cols)
 
 void clear_screen()
 {
-    // cout << "\033[H\033[2J\033[3J";
-    cout << "\033[H\033[2J";
+    cout << "\033[H\033[2J\033[3J";
+    // cout << "\033[H\033[2J";
 }
 
 void clear_currline()
@@ -381,8 +380,16 @@ void getAllFiles(string path)
             {
 
                 currfile.permission = getPermissions(sb);
-                currfile.user = getpwuid(sb.st_uid)->pw_name;
-                currfile.group = getgrgid(sb.st_gid)->gr_name;
+                passwd *u = getpwuid(sb.st_uid);
+                if (u)
+                    currfile.user = u->pw_name;
+                else
+                    currfile.user = "----";
+                group *g = getgrgid(sb.st_gid);
+                if (g)
+                    currfile.group = g->gr_name;
+                else
+                    currfile.group = "----";
 
                 currfile.size = formatSize(sb.st_size);
                 currfile.name = dir->d_name;
@@ -513,7 +520,8 @@ void getcurrdir()
 {
     char buf[100];
     CWD = getcwd(buf, 100);
-    CWD += "/";
+    if (CWD != "/")
+        CWD += "/";
 }
 
 void getHomeDir()
@@ -1206,30 +1214,6 @@ void commandexec()
     move_cursor(E.maxRows + 3, 1);
     keys = "";
 }
-
-// char editorReadKey()
-// {
-//     char ch;
-//     scanf("%c", &ch);
-
-//     if (ch == '\x1b')
-//     {
-//         char seq[3];
-//         if (scanf("%c", &seq[0]) != 1)
-//             return '\x1b';
-//         if (scanf("%c", &seq[1]) != 1)
-//             return '\x1b';
-//         if (seq[0] == '[')
-//         {
-//             return seq[1];
-//         }
-//         return '\x1b';
-//     }
-//     else
-//     {
-//         return ch;
-//     }
-// }
 
 void commandmode()
 {
