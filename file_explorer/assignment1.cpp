@@ -795,7 +795,7 @@ void downkey()
 
 void goto_parent_dir()
 {
-    if (backstk.empty() or (!backstk.empty() and (backstk.top() != CWD and CWD != "/")))
+    if (backstk.empty() or (!backstk.empty() and (backstk.top() != CWD or CWD != "/")))
         backstk.push(CWD);
 
     change_dir("..");
@@ -858,7 +858,8 @@ void goforward()
         return;
     else
     {
-        backstk.push(CWD);
+        if (backstk.empty() or (!backstk.empty() and (backstk.top() != CWD or CWD != "/")))
+            backstk.push(CWD);
         change_dir(forwardstk.top());
         forwardstk.pop();
         getAllFiles(CWD);
@@ -1179,7 +1180,8 @@ void commandexec()
     }
     else if (task == "goto")
     {
-        backstk.push(CWD);
+        if (backstk.empty() or (!backstk.empty() and (backstk.top() != CWD or CWD != "/")))
+            backstk.push(CWD);
         if (change_dir(cmdkeys[1]))
         {
             printoutput("Directory changed successfully", true);
