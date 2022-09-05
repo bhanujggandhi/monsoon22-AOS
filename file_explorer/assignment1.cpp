@@ -795,7 +795,9 @@ void downkey()
 
 void goto_parent_dir()
 {
-    backstk.push(CWD);
+    if (backstk.empty() or (!backstk.empty() and (backstk.top() != CWD and CWD != "/")))
+        backstk.push(CWD);
+
     change_dir("..");
     getAllFiles(CWD);
 }
