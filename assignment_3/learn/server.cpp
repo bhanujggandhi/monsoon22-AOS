@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <linux/limits.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +12,7 @@
 
 using namespace std;
 
-void handle_connection(int client_socket);
+void* handle_connection(void* p_client_socket);
 
 void error(const char* msg) {
     perror(msg);
@@ -68,7 +69,7 @@ int main(int argc, char* argv[]) {
 
     /* Listen call take socket file descriptor as well as maximum number of
      * requests to store in the backlog queue */
-    check(listen(server_socket, 5), "Listen Failed");
+    check(listen(server_socket, 100), "Listen Failed");
 
     while (true) {
         cout << "Waiting for connections..." << endl;
@@ -88,7 +89,12 @@ int main(int argc, char* argv[]) {
         printf("Server: Got connection from %s port %d on the socket number\n",
                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
-        handle_connection(client_socket);
+        pthread_t thd;
+        int* pclient = (int*)malloc(sizeof(int));
+        *pclient = client_socket;
+
+        pthread_create(&thd, NULL, handle_connection, pclient);
+        // handle_connection(pclient);
     }
 
     close(server_socket);
@@ -96,7 +102,9 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-void handle_connection(int client_socket) {
+void* handle_connection(void* p_client_socket) {
+    int client_socket = *((int*)p_client_socket);
+    free(p_client_socket);
     char buffer[BUFSIZ];
     size_t bytes_read = 0;
     int msgsize = 0;
@@ -115,14 +123,14 @@ void handle_connection(int client_socket) {
     if (realpath(buffer, actualpath) == NULL) {
         cout << "ERROR: bad path " << buffer << endl;
         close(client_socket);
-        return;
+        return NULL;
     }
 
     FILE* fp = fopen(actualpath, "r");
     if (fp == NULL) {
         cout << "ERROR(open) " << buffer << endl;
         close(client_socket);
-        return;
+        return NULL;
     }
 
     while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
@@ -133,4 +141,6 @@ void handle_connection(int client_socket) {
     close(client_socket);
     fclose(fp);
     cout << "Closing connection" << endl;
+
+    return NULL;
 }
