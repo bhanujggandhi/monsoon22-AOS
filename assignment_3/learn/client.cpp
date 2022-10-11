@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <linux/limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -5,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -52,9 +54,23 @@ int main(int argc, char *argv[]) {
 
     char buff[BUFSIZ];
     bzero(buff, BUFSIZ);
-    n = read(sockfd, buff, BUFSIZ);
 
-    if (n < 0) error("ERROR reading from socket");
+    int d = open("copied.txt", O_WRONLY | O_CREAT,
+                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    if (d == -1) {
+        error("Destination file cannot be opened");
+        close(d);
+        return 1;
+    }
+
+    size_t size;
+    while ((size = read(sockfd, buff, BUFSIZ)) > 0) {
+        write(d, buff, size);
+    }
+
+    // if (n < 0) error("ERROR reading from socket");
+    close(d);
 
     printf("%s\n", buff);
     close(sockfd);
