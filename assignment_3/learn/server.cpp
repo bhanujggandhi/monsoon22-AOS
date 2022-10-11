@@ -89,9 +89,22 @@ int main(int argc, char* argv[]) {
         printf("Server: Got connection from %s port %d on the socket number\n",
                inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
+        /* Multithreading the handling request, whenever server will accept a
+         * new request a separate thread will be created for every request to
+         * serve. It is quite useful when there a lot of synchronous requests.
+         * If you open two terminals, first T1 and then T2. Send a request using
+         * T2 it will wait until T1 is completed as server has no threads. But
+         * when multithreading is implemented it will respond to the T2 request
+         * right away. */
         pthread_t thd;
         int* pclient = (int*)malloc(sizeof(int));
         *pclient = client_socket;
+
+        /* Thread creating takes thread pointer, the function that thread will
+         * perform and then all the arguments of that function. The function
+         * that will handle must return the void pointer and takes in all the
+         * arguments as void pointer, that is why we have changed the arguments
+         * and everything. */
 
         pthread_create(&thd, NULL, handle_connection, pclient);
         // handle_connection(pclient);
