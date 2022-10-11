@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <linux/limits.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,12 +7,21 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <iostream>
 
 using namespace std;
+
+void handle_connection(int client_socket);
 
 void error(const char* msg) {
     perror(msg);
     exit(1);
+}
+
+void check(int status, string msg) {
+    if (status < 0) {
+        error(msg.c_str());
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -21,47 +31,106 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) error("ERROR in Opening Socket");
+    // Adress Family, Protocol to send(UDP/TCP), Protocol (Usually 0 as it is
+    // unspecified)
+    int server_socket;
+    check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
+          "ERROR in Opening Socket");
 
-    struct sockaddr_in serv_addr;
-    bzero((char*)&serv_addr, sizeof(serv_addr));
+    // Making sure all the content inside the newly created Internet Socket
+    // Address struct is clear and set to 0
+    struct sockaddr_in server_addr;
+    bzero((char*)&server_addr, sizeof(server_addr));
 
     int portno = atoi(argv[1]);
 
-    serv_addr.sin_family = AF_INET;
+    // Mentioning the address family in the struct
+    server_addr.sin_family = AF_INET;
 
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    // This statement sets any random IP address for socket connection
+    server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    serv_addr.sin_port = htons(portno);
+    /* Sending port number to the struct but the thing is computer way of
+     * handling port numbers and network way of handling port number is
+     * incompatible */
+    server_addr.sin_port = htons(portno);
 
-    if (bind(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
-        error("ERROR on binding");
+    /* Now to send this struct over network in bind call we have to convert it
+     * into network stream, so we are using sockaddr struct for that.
+
+     * Now this is passed into the bind system call with the file descriptor
+     of socket
+      */
+
+    check(bind(server_socket, (struct sockaddr*)&server_addr,
+               sizeof(server_addr)),
+          "ERROR on binding");
+
+    /* Listen call take socket file descriptor as well as maximum number of
+     * requests to store in the backlog queue */
+    check(listen(server_socket, 5), "Listen Failed");
+
+    while (true) {
+        cout << "Waiting for connections..." << endl;
+
+        struct sockaddr_in client_addr;
+        socklen_t clilen = sizeof(client_addr);
+        /* Now when we are listening and we get a request, to accept the request
+         * we get a new file descriptor which will help us in communication, now
+         * all the messages would be passed to the client using this new file
+         * descriptor
+         */
+        int client_socket;
+        check(client_socket = accept(server_socket,
+                                     (struct sockaddr*)&client_addr, &clilen),
+              "ERROR on Accept");
+
+        printf("Server: Got connection from %s port %d on the socket number\n",
+               inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+        handle_connection(client_socket);
     }
 
-    listen(sockfd, 5);
-
-    struct sockaddr_in cli_addr;
-    socklen_t clilen = sizeof(cli_addr);
-
-    int newsockfd = accept(sockfd, (struct sockaddr*)&cli_addr, &clilen);
-
-    if (newsockfd < 0) error("ERROR on Accept");
-
-    printf("Server: Got connection from %s port %d\n",
-           inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
-
-    send(newsockfd, "Hello Bhanuj\n", 13, 0);
-
-    char buffer[256];
-    bzero(buffer, 256);
-
-    int n = read(newsockfd, buffer, 255);
-    if (n < 0) error("ERROR reading from socket");
-    printf("Here is the message: %s\n", buffer);
-
-    close(newsockfd);
-    close(sockfd);
+    close(server_socket);
 
     return 0;
+}
+
+void handle_connection(int client_socket) {
+    char buffer[BUFSIZ];
+    size_t bytes_read = 0;
+    int msgsize = 0;
+    char actualpath[PATH_MAX + 1];
+
+    while ((bytes_read = read(client_socket, buffer + msgsize,
+                              sizeof(buffer) - msgsize - 1)) > 0) {
+        msgsize += bytes_read;
+        if (msgsize > BUFSIZ - 1 or buffer[msgsize - 1] == '\n') break;
+    }
+    check(bytes_read, "recv error");
+    buffer[msgsize - 1] = 0;
+
+    printf("REQUEST: %s\n", buffer);
+    fflush(stdout);
+    if (realpath(buffer, actualpath) == NULL) {
+        cout << "ERROR: bad path " << buffer << endl;
+        close(client_socket);
+        return;
+    }
+
+    FILE* fp = fopen(actualpath, "r");
+    if (fp == NULL) {
+        cout << "ERROR(open) " << buffer << endl;
+        close(client_socket);
+        return;
+    }
+
+    while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
+        cout << "Sending " << bytes_read << " bytes\n";
+        write(client_socket, buffer, bytes_read);
+    }
+
+    close(client_socket);
+    fclose(fp);
+    cout << "Closing connection" << endl;
 }
