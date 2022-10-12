@@ -73,7 +73,6 @@ int main(int argc, char *argv[]) {
         write(d, buff, size);
     }
 
-    // if (n < 0) error("ERROR reading from socket");
     close(d);
 
     printf("%s\n", buff);

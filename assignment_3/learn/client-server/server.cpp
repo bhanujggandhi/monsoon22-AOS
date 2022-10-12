@@ -17,6 +17,7 @@ using namespace std;
 
 pthread_t thread_pool[THREAD_POOL_SIZE];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
 queue<int*> thread_queue;
 
 void error(const char* msg);
@@ -107,6 +108,7 @@ int main(int argc, char* argv[]) {
 
         pthread_mutex_lock(&mutex);
         thread_queue.push(pclient);
+        pthread_cond_signal(&condition_var);
         pthread_mutex_unlock(&mutex);
 
         /* Thread creating takes thread pointer, the function that thread will
@@ -141,6 +143,11 @@ void* thread_function(void* arg) {
         pthread_mutex_lock(&mutex);
         if (thread_queue.empty()) {
             pclient = NULL;
+            pthread_cond_wait(&condition_var, &mutex);
+            if (!thread_queue.empty()) {
+                pclient = thread_queue.front();
+                thread_queue.pop();
+            }
         } else {
             pclient = thread_queue.front();
             thread_queue.pop();
