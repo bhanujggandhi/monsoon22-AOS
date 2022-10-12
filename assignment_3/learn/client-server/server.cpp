@@ -166,7 +166,7 @@ void* handle_connection(void* p_client_socket) {
     char buffer[BUFSIZ];
     size_t bytes_read = 0;
     int msgsize = 0;
-    char actualpath[PATH_MAX + 1];
+    char actualpath[PATH_MAX];
 
     while ((bytes_read = read(client_socket, buffer + msgsize,
                               sizeof(buffer) - msgsize - 1)) > 0) {
