@@ -8,22 +8,21 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <iostream>
+#include <queue>
+#include <string>
+
+#define THREAD_POOL_SIZE 5
 
 using namespace std;
 
+pthread_t thread_pool[THREAD_POOL_SIZE];
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+queue<int*> thread_queue;
+
+void error(const char* msg);
+void check(int status, string msg);
 void* handle_connection(void* p_client_socket);
-
-void error(const char* msg) {
-    perror(msg);
-    exit(1);
-}
-
-void check(int status, string msg) {
-    if (status < 0) {
-        error(msg.c_str());
-    }
-}
+void* thread_function(void* arg);
 
 int main(int argc, char* argv[]) {
 
@@ -71,8 +70,12 @@ int main(int argc, char* argv[]) {
      * requests to store in the backlog queue */
     check(listen(server_socket, 100), "Listen Failed");
 
+    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+        pthread_create(&thread_pool[i], NULL, thread_function, NULL);
+    }
+
     while (true) {
-        cout << "Waiting for connections..." << endl;
+        printf("Waiting for connections...\n");
 
         struct sockaddr_in client_addr;
         socklen_t clilen = sizeof(client_addr);
@@ -96,9 +99,15 @@ int main(int argc, char* argv[]) {
          * T2 it will wait until T1 is completed as server has no threads. But
          * when multithreading is implemented it will respond to the T2 request
          * right away. */
-        pthread_t thd;
+
+        // pthread_t thd;
+
         int* pclient = (int*)malloc(sizeof(int));
         *pclient = client_socket;
+
+        pthread_mutex_lock(&mutex);
+        thread_queue.push(pclient);
+        pthread_mutex_unlock(&mutex);
 
         /* Thread creating takes thread pointer, the function that thread will
          * perform and then all the arguments of that function. The function
@@ -106,13 +115,42 @@ int main(int argc, char* argv[]) {
          * arguments as void pointer, that is why we have changed the arguments
          * and everything. */
 
-        pthread_create(&thd, NULL, handle_connection, pclient);
+        // pthread_create(&thd, NULL, handle_connection, pclient);
         // handle_connection(pclient);
     }
 
     close(server_socket);
 
     return 0;
+}
+
+void error(const char* msg) {
+    perror(msg);
+    exit(1);
+}
+
+void check(int status, string msg) {
+    if (status < 0) {
+        error(msg.c_str());
+    }
+}
+
+void* thread_function(void* arg) {
+    while (true) {
+        int* pclient;
+        pthread_mutex_lock(&mutex);
+        if (thread_queue.empty()) {
+            pclient = NULL;
+        } else {
+            pclient = thread_queue.front();
+            thread_queue.pop();
+        }
+        pthread_mutex_unlock(&mutex);
+
+        if (pclient != NULL) {
+            handle_connection(pclient);
+        }
+    }
 }
 
 void* handle_connection(void* p_client_socket) {
@@ -134,26 +172,26 @@ void* handle_connection(void* p_client_socket) {
     printf("REQUEST: %s\n", buffer);
     fflush(stdout);
     if (realpath(buffer, actualpath) == NULL) {
-        cout << "ERROR: bad path " << buffer << endl;
+        printf("ERROR: bad path %s\n", buffer);
         close(client_socket);
         return NULL;
     }
 
     FILE* fp = fopen(actualpath, "r");
     if (fp == NULL) {
-        cout << "ERROR(open) " << buffer << endl;
+        printf("ERROR(open) %s\n", buffer);
         close(client_socket);
         return NULL;
     }
 
     while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
-        cout << "Sending " << bytes_read << " bytes\n";
+        printf("Sending %ld bytes\n", bytes_read);
         write(client_socket, buffer, bytes_read);
     }
 
     close(client_socket);
     fclose(fp);
-    cout << "Closing connection" << endl;
+    printf("Closing connection\n");
 
     return NULL;
 }

@@ -1,6 +1,14 @@
-Hi this is a temp
-file with a lot of content
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse tempus arcu ac placerat eleifend. Donec nec lobortis nunc. Phasellus ut nunc fermentum, aliquet enim at, aliquet turpis. Curabitur dignissim magna ut tortor eleifend molestie. Maecenas viverra varius tortor, tempor facilisis ante aliquam id. Mauris vel mauris non diam dignissim rutrum. Proin fermentum lectus sed enim interdum venenatis. Donec ultrices dui metus, eget lacinia libero vulputate eu. Nam ut varius est, non sagittis dui. Phasellus sodales at ligula sed pulvinar. Cras imperdiet tincidunt lacinia. Suspendisse nec efficitur turpis. Sed quis varius magna. Etiam in mauris dui. Sed lectus orci, egestas ut dolor at, suscipit feugiat lorem.
+CC = g++
+CFLAGS = -g
+BINS = server client
+
+all: $(BINS)
+
+%: %.cpp
+	$(CC) $(CFLAGS) -o $@ $^
+
+clean:
+	rm -rf $(BINS)empus arcu ac placerat eleifend. Donec nec lobortis nunc. Phasellus ut nunc fermentum, aliquet enim at, aliquet turpis. Curabitur dignissim magna ut tortor eleifend molestie. Maecenas viverra varius tortor, tempor facilisis ante aliquam id. Mauris vel mauris non diam dignissim rutrum. Proin fermentum lectus sed enim interdum venenatis. Donec ultrices dui metus, eget lacinia libero vulputate eu. Nam ut varius est, non sagittis dui. Phasellus sodales at ligula sed pulvinar. Cras imperdiet tincidunt lacinia. Suspendisse nec efficitur turpis. Sed quis varius magna. Etiam in mauris dui. Sed lectus orci, egestas ut dolor at, suscipit feugiat lorem.
 
 Nulla dignissim nulla eget lacinia vehicula. Fusce dictum ex eget nunc volutpat interdum. Vivamus tristique non turpis eget commodo. Suspendisse ullamcorper lacinia accumsan. Phasellus interdum commodo volutpat. Fusce vel nulla in metus ornare pretium. Morbi congue leo id ornare auctor. Donec consectetur maximus pharetra. Quisque enim mi, convallis id mi ut, porta commodo tellus. Nam feugiat ac sem quis fermentum. Curabitur tempus tellus risus, vel cursus sem aliquet ac. Praesent imperdiet metus in quam aliquet, ac accumsan est volutpat. Nulla quis imperdiet nibh.
 

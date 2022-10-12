@@ -10,6 +10,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define BUF_SIZE 4096
+
 void error(const char *msg) {
     perror(msg);
     exit(0);
@@ -54,6 +56,8 @@ int main(int argc, char *argv[]) {
 
     char buff[BUFSIZ];
     bzero(buff, BUFSIZ);
+
+    /* Take source destination from the args and realpath */
 
     int d = open("copied.txt", O_WRONLY | O_CREAT,
                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
