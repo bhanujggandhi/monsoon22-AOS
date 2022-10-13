@@ -14,16 +14,21 @@
 
 using namespace std;
 
+// Globals
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
+unordered_map<string, string> user_map;
+unordered_map<string, bool> loggedin_map;
 
+// Functions
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
+void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
@@ -218,6 +223,36 @@ void* start_thread(void* arg) {
     return NULL;
 }
 
+void download_file(char* path, int client_socket) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    size_t bytes_read;
+
+    fflush(stdout);
+    if (realpath(path, resolvedpath) == NULL) {
+        printf("ERROR: bad path %s\n", resolvedpath);
+        close(client_socket);
+        return;
+    }
+
+    char buffer[BUFSIZ];
+
+    FILE* fp = fopen(resolvedpath, "r");
+    if (fp == NULL) {
+        printf("ERROR(open) %s\n", buffer);
+        close(client_socket);
+        return;
+    }
+
+    while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
+        printf("Sending %ld bytes\n", bytes_read);
+        write(client_socket, buffer, bytes_read);
+    }
+
+    close(client_socket);
+    fclose(fp);
+    return;
+}
+
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
@@ -236,30 +271,78 @@ void* handle_connection(void* arg) {
     check(bytes_read, "recv error");
     request[req_size - 1] = 0;
 
-    char resolvedpath[_POSIX_PATH_MAX];
+    vector<string> reqarr;
+    string req(request);
+    splitutility(req, ' ', reqarr);
 
-    fflush(stdout);
-    if (realpath(request, resolvedpath) == NULL) {
-        printf("ERROR: bad path %s\n", resolvedpath);
-        close(client_socket);
+    if (reqarr[0] == "create_user") {
+        if (reqarr.size() > 3) {
+            string msg =
+                "1:Invalid Number of arguments for Create User\nUSAGE - "
+                "create_user <user_id> <password>\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        string userid = reqarr[1];
+        string password = reqarr[2];
+
+        if (user_map.find(userid) != user_map.end()) {
+            string msg =
+                "1:User ID already exists\nEither Login or create an account "
+                "with unique User ID\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        user_map.insert({userid, password});
+        loggedin_map[userid] = true;
+        string res = "1:" + userid + ":User created successfully!\n";
+        write(client_socket, res.c_str(), res.size());
+    } else if (reqarr[0] == "login") {
+        if (reqarr.size() > 3) {
+            string msg =
+                "1:Invalid Number of arguments for Login\nUSAGE - login "
+                "<user_id> <password>\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        string userid = reqarr[1];
+        string password = reqarr[2];
+
+        if (user_map.find(userid) == user_map.end()) {
+            string msg =
+                "1:User ID does not exist\nPlease create an account to "
+                "continue\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (password == user_map[userid]) {
+            loggedin_map[userid] = true;
+            string res = "2:" + userid + ":User logged in successfully!\n";
+            write(client_socket, res.c_str(), res.size());
+            return NULL;
+        }
+
+        loggedin_map[userid] = false;
+        string msg = "1:Password is incorrect, please try again\n";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+
+    } else if (reqarr[0] == "logout") {
+        if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
+            string msg = "1:User is not logged in\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        loggedin_map[reqarr[1]] = false;
+        string msg = "1:Logged out successfully!\n";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+    } else {
+        write(client_socket, "0:Please enter a valid command\n", 29);
         return NULL;
     }
 
-    char buffer[BUFSIZ];
-
-    FILE* fp = fopen(resolvedpath, "r");
-    if (fp == NULL) {
-        printf("ERROR(open) %s\n", buffer);
-        close(client_socket);
-        return NULL;
-    }
-
-    while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
-        printf("Sending %ld bytes\n", bytes_read);
-        write(client_socket, buffer, bytes_read);
-    }
-
-    close(client_socket);
-    fclose(fp);
     return NULL;
 }

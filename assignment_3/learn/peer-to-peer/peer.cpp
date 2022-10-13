@@ -17,6 +17,8 @@ using namespace std;
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
+string userid = "";
+bool loggedin = false;
 
 void err(const char* msg);
 void check(int status, string msg);
@@ -53,19 +55,19 @@ void check(int status, string msg) {
     }
 }
 
-void splitutility(string str, char del, vector<string>& pth) {
+void splitutility(string str, char del, vector<string>& arr) {
     string temp = "";
 
     for (int i = 0; i < str.size(); i++) {
         if (str[i] != del)
             temp += str[i];
         else {
-            pth.push_back(temp);
+            arr.push_back(temp);
             temp = "";
         }
     }
 
-    pth.push_back(temp);
+    arr.push_back(temp);
 }
 
 void* server_function(void* arg) {
@@ -152,33 +154,93 @@ void client_function(const char* request, int CLIENTPORT) {
         return;
     }
 
-    int n = write(server_socket, request, strlen(request));
-    if (n < 0) err("ERROR: writing to socket");
+    vector<string> reqarr;
+    string req(request);
+    splitutility(req, ' ', reqarr);
 
-    char buff[BUFSIZ];
-    bzero(buff, BUFSIZ);
+    printf("command: %s\n", reqarr[0].c_str());
 
-    /* Take source destination from the args and realpath */
+    char buffer[BUFSIZ];
+    memset(buffer, 0, BUFSIZ);
+    if (reqarr[0] == "create_user") {
+        int n = write(server_socket, request, strlen(request));
+        if (n < 0) err("ERROR: writing to socket");
 
-    int d = open("copied.pdf", O_WRONLY | O_CREAT,
-                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
 
-    if (d == -1) {
-        err("Destination file cannot be opened");
-        close(d);
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+        if (resarr[0] == "2") {
+            userid = resarr[1];
+            loggedin = true;
+            printf("%s\n", resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (reqarr[0] == "login") {
+        if (loggedin) {
+            printf("You are already logged in as %s\nPlease logout first!\n",
+                   userid.c_str());
+        }
+        int n = write(server_socket, request, strlen(request));
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            userid = resarr[1];
+            loggedin = true;
+            printf("%s\n", resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (req == "logout\n") {
+        if (loggedin == false) {
+            printf("You are not logged in!\n");
+        } else {
+            req = req + " " + userid;
+            int n = write(server_socket, req.c_str(), req.size());
+            if (n < 0) err("ERROR: writing to socket");
+
+            size_t size;
+            if (read(server_socket, buffer, BUFSIZ) < 0) {
+                printf("Couldn't get response from the tracker\n");
+                return;
+            }
+
+            vector<string> resarr;
+            string res(buffer);
+            splitutility(res, ':', resarr);
+
+            if (resarr[0] == "2") {
+                userid = resarr[1];
+                loggedin = true;
+                printf("%s\n", resarr[2].c_str());
+            } else if (resarr[0] == "1") {
+                printf("%s\n", resarr[1].c_str());
+            }
+        }
+
+    } else {
+        printf("Invalid command\nTry again!\n");
         return;
     }
 
-    size_t size;
-    while ((size = read(server_socket, buff, BUFSIZ)) > 0) {
-        // sleep(1);
-        printf("Got %ld bytes\n", size);
-        write(d, buff, size);
-    }
+    printf("%s\n", userid.c_str());
 
-    close(d);
-
-    printf("File Transferred Succesfully!\n");
     close(server_socket);
 }
 
@@ -249,4 +311,30 @@ void* handle_connection(void* arg) {
     close(client_socket);
     fclose(fp);
     return NULL;
+}
+
+void recieved_file(string path, int server_socket) {
+    /* Take source destination from the args and realpath */
+    char buff[BUFSIZ];
+    bzero(buff, BUFSIZ);
+
+    int d = open(path.c_str(), O_WRONLY | O_CREAT,
+                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    if (d == -1) {
+        err("Destination file cannot be opened");
+        close(d);
+        return;
+    }
+
+    size_t size;
+    while ((size = read(server_socket, buff, BUFSIZ)) > 0) {
+        // sleep(1);
+        printf("Got %ld bytes\n", size);
+        write(d, buff, size);
+    }
+
+    close(d);
+
+    printf("File Recieved Succesfully!\n");
 }
