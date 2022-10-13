@@ -160,7 +160,7 @@ void client_function(const char* request, int CLIENTPORT) {
 
     /* Take source destination from the args and realpath */
 
-    int d = open("copied.txt", O_WRONLY | O_CREAT,
+    int d = open("copied.pdf", O_WRONLY | O_CREAT,
                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
     if (d == -1) {
@@ -171,6 +171,8 @@ void client_function(const char* request, int CLIENTPORT) {
 
     size_t size;
     while ((size = read(server_socket, buff, BUFSIZ)) > 0) {
+        // sleep(1);
+        printf("Got %ld bytes\n", size);
         write(d, buff, size);
     }
 

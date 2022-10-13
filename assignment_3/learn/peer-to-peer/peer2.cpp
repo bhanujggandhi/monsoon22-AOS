@@ -1,4 +1,6 @@
 #include <arpa/inet.h>
+#include <bits/stdc++.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -6,8 +8,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <queue>
-#include <string>
 
 #define THREAD_POOL_SIZE 4
 #define SERVERPORT 8082
@@ -18,10 +18,11 @@ pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
 
-void error(const string msg);
+void err(const char* msg);
 void check(int status, string msg);
+void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
-void client_function(char* request, int CLIENTPORT);
+void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* handle_connection(void* socket);
 
@@ -30,28 +31,41 @@ int main(int argc, char* argv[]) {
     pthread_create(&server_thread, NULL, server_function, NULL);
 
     while (1) {
-        char portreq[5];
         char request[255];
-        memset(portreq, 0, 5);
         memset(request, 0, 255);
-        fgets(portreq, 5, stdin);
         fflush(stdin);
         fgets(request, 255, stdin);
-        int CLIENTPORT = atoi(portreq);
-        printf("%d incoming port\n", CLIENTPORT);
-        client_function(request, CLIENTPORT);
+        vector<string> parsedReq;
+        string req(request);
+        splitutility(req, ':', parsedReq);
+        int CLIENTPORT = atoi(parsedReq[0].c_str());
+        // int CLIENTPORT = 8081;
+        if (CLIENTPORT == 0) continue;
+        client_function(parsedReq[1].c_str(), CLIENTPORT);
     }
 }
 
-void err(const char* msg) {
-    perror(msg);
-    exit(1);
-}
+void err(const char* msg) { printf("%s\n", msg); }
 
 void check(int status, string msg) {
     if (status < 0) {
         err(msg.c_str());
     }
+}
+
+void splitutility(string str, char del, vector<string>& pth) {
+    string temp = "";
+
+    for (int i = 0; i < str.size(); i++) {
+        if (str[i] != del)
+            temp += str[i];
+        else {
+            pth.push_back(temp);
+            temp = "";
+        }
+    }
+
+    pth.push_back(temp);
 }
 
 void* server_function(void* arg) {
@@ -104,15 +118,16 @@ void* server_function(void* arg) {
         pthread_mutex_unlock(&mutexQueue);
     }
 
-    close(server_socket);
+    // close(server_socket);
+    shutdown(server_socket, SHUT_RDWR);
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
 }
 
-void client_function(char* request, int CLIENTPORT) {
+void client_function(const char* request, int CLIENTPORT) {
     int portno = CLIENTPORT;
-    int client_socket;
-    check(client_socket = socket(AF_INET, SOCK_STREAM, 0),
+    int server_socket;
+    check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Opening PORT");
 
     struct sockaddr_in server_address;
@@ -131,12 +146,40 @@ void client_function(char* request, int CLIENTPORT) {
 
     server_address.sin_port = htons(portno);
 
-    if (connect(client_socket, (struct sockaddr*)&server_address,
-                sizeof(server_address)) < 0)
+    if (connect(server_socket, (struct sockaddr*)&server_address,
+                sizeof(server_address)) < 0) {
         err("Error Connecting");
+        return;
+    }
 
-    int n = write(client_socket, request, strlen(request));
+    int n = write(server_socket, request, strlen(request));
     if (n < 0) err("ERROR: writing to socket");
+
+    char buff[BUFSIZ];
+    bzero(buff, BUFSIZ);
+
+    /* Take source destination from the args and realpath */
+
+    int d = open("copied2.pdf", O_WRONLY | O_CREAT,
+                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+
+    if (d == -1) {
+        err("Destination file cannot be opened");
+        close(d);
+        return;
+    }
+
+    size_t size;
+    while ((size = read(server_socket, buff, BUFSIZ)) > 0) {
+        // sleep(1);
+        printf("Got %ld bytes\n", size);
+        write(d, buff, size);
+    }
+
+    close(d);
+
+    printf("File Transferred Succesfully!\n");
+    close(server_socket);
 }
 
 void* start_thread(void* arg) {
@@ -165,10 +208,45 @@ void* start_thread(void* arg) {
 
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
-    char request[255];
-    bzero(request, 255);
-    read(client_socket, request, 255);
-    printf("REQUEST: %s\n", request);
+    free(arg);
+    char request[_POSIX_PATH_MAX];
+    bzero(request, _POSIX_PATH_MAX);
+
+    size_t bytes_read;
+    int msgsize = 0;
+
+    while ((bytes_read = read(client_socket, request + msgsize,
+                              sizeof(request) - msgsize - 1)) > 0) {
+        msgsize += bytes_read;
+        if (msgsize > BUFSIZ - 1 or request[msgsize - 1] == '\n') break;
+    }
+    check(bytes_read, "recv error");
+    request[msgsize - 1] = 0;
+
+    char resolvedpath[_POSIX_PATH_MAX];
+
+    fflush(stdout);
+    if (realpath(request, resolvedpath) == NULL) {
+        printf("ERROR: bad path %s\n", resolvedpath);
+        close(client_socket);
+        return NULL;
+    }
+
+    char buffer[BUFSIZ];
+
+    FILE* fp = fopen(resolvedpath, "r");
+    if (fp == NULL) {
+        printf("ERROR(open) %s\n", buffer);
+        close(client_socket);
+        return NULL;
+    }
+
+    while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
+        printf("Sending %ld bytes\n", bytes_read);
+        write(client_socket, buffer, bytes_read);
+    }
+
     close(client_socket);
+    fclose(fp);
     return NULL;
 }
