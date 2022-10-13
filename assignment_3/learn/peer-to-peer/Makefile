@@ -4,10 +4,17 @@ BINS = tracker peer peer2
 
 all: $(BINS)
 
-%: %.cpp
-	$(CC) $(CFLAGS) -o bin/$@ $^
+tracker: tracker.cpp
+	$(CC) $(CFLAGS) -o $@ tracker.cpp
+
+peer: peer.cpp
+	$(CC) $(CFLAGS) -o $@ peer.cpp
+
+peer2: peer2.cpp
+	$(CC) $(CFLAGS) -o $@ peer2.cpp
+
 
 clean:
-	rm -rf bin/peer
-	rm -rf bin/tracker
-	rm -rf bin/peer2
+	rm -rf peer
+	rm -rf tracker
+	rm -rf peer2

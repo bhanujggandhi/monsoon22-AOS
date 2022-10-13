@@ -28,7 +28,7 @@ void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, NULL);
+    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
 
     while (1) {
         char request[255];
@@ -69,6 +69,14 @@ void splitutility(string str, char del, vector<string>& pth) {
 }
 
 void* server_function(void* arg) {
+    // Parse IP:PORT
+    char* ipport = (char*)arg;
+    vector<string> ipportsplit;
+    string ipportstr(ipport);
+    splitutility(ipportstr, ':', ipportsplit);
+
+    int portno = stoi(ipportsplit[1]);
+
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Socket Cannot be Opened!");
@@ -76,9 +84,14 @@ void* server_function(void* arg) {
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
 
-    int portno = SERVERPORT;
+    // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
+    if (inet_pton(AF_INET, ipportsplit[0].c_str(), &server_addr.sin_addr) ==
+        0) {
+        perror("Invalid IP");
+        exit(1);
+    }
+    // server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(portno);
 
     check(bind(server_socket, (struct sockaddr*)&server_addr,
@@ -212,15 +225,16 @@ void* handle_connection(void* arg) {
     bzero(request, _POSIX_PATH_MAX);
 
     size_t bytes_read;
-    int msgsize = 0;
+    int req_size = 0;
 
-    while ((bytes_read = read(client_socket, request + msgsize,
-                              sizeof(request) - msgsize - 1)) > 0) {
-        msgsize += bytes_read;
-        if (msgsize > BUFSIZ - 1 or request[msgsize - 1] == '\n') break;
+    while ((bytes_read = read(client_socket, request + req_size,
+                              sizeof(request) - req_size - 1)) > 0) {
+        req_size += bytes_read;
+        if (req_size > _POSIX_PATH_MAX - 1 or request[req_size - 1] == '\n')
+            break;
     }
     check(bytes_read, "recv error");
-    request[msgsize - 1] = 0;
+    request[req_size - 1] = 0;
 
     char resolvedpath[_POSIX_PATH_MAX];
 
