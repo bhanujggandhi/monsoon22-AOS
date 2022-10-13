@@ -1,6 +1,6 @@
 CC = g++
 CFLAGS = -g
-BINS = tracker peer
+BINS = tracker peer peer2
 
 all: $(BINS)
 
@@ -8,4 +8,6 @@ all: $(BINS)
 	$(CC) $(CFLAGS) -o bin/$@ $^
 
 clean:
-	rm -rf $(BINS)
+	rm -rf bin/peer
+	rm -rf bin/tracker
+	rm -rf bin/peer2

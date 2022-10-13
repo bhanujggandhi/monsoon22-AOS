@@ -12,7 +12,7 @@
 
 #define BUF_SIZE 4096
 
-void error(const char *msg) {
+void err(const char *msg) {
     perror(msg);
     exit(0);
 }
@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
 
     int portno = atoi(argv[2]);
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) error("ERROR in Opening PORT");
+    if (sockfd < 0) err("ERROR in Opening PORT");
 
     struct hostent *server = gethostbyname(argv[1]);
 
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_port = htons(portno);
 
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-        error("Error Connecting");
+        err("Error Connecting");
 
     char buffer[256];
     bzero(buffer, 256);
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
     printf("%s\n", buffer);
 
     int n = write(sockfd, buffer, strlen(buffer));
-    if (n < 0) error("ERROR writing to socket");
+    if (n < 0) err("ERROR writing to socket");
 
     char buff[BUFSIZ];
     bzero(buff, BUFSIZ);
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
     if (d == -1) {
-        error("Destination file cannot be opened");
+        err("Destination file cannot be opened");
         close(d);
         return 1;
     }

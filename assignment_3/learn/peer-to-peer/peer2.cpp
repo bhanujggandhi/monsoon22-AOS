@@ -10,7 +10,7 @@
 #include <string>
 
 #define THREAD_POOL_SIZE 4
-#define SERVERPORT 8081
+#define SERVERPORT 8082
 
 using namespace std;
 
@@ -18,7 +18,7 @@ pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
 
-void err(const char* msg);
+void error(const string msg);
 void check(int status, string msg);
 void* server_function(void* arg);
 void client_function(char* request, int CLIENTPORT);
@@ -38,12 +38,15 @@ int main(int argc, char* argv[]) {
         fflush(stdin);
         fgets(request, 255, stdin);
         int CLIENTPORT = atoi(portreq);
-        if (CLIENTPORT == 0) continue;
+        printf("%d incoming port\n", CLIENTPORT);
         client_function(request, CLIENTPORT);
     }
 }
 
-void err(const char* msg) { printf("%s\n", msg); }
+void err(const char* msg) {
+    perror(msg);
+    exit(1);
+}
 
 void check(int status, string msg) {
     if (status < 0) {
@@ -129,10 +132,8 @@ void client_function(char* request, int CLIENTPORT) {
     server_address.sin_port = htons(portno);
 
     if (connect(client_socket, (struct sockaddr*)&server_address,
-                sizeof(server_address)) < 0) {
+                sizeof(server_address)) < 0)
         err("Error Connecting");
-        return;
-    }
 
     int n = write(client_socket, request, strlen(request));
     if (n < 0) err("ERROR: writing to socket");

@@ -10,6 +10,7 @@
 #include <string>
 
 #define THREAD_POOL_SIZE 4
+#define SERVERPORT 8080
 
 using namespace std;
 
@@ -20,30 +21,36 @@ queue<int*> thread_queue;
 void error(const string msg);
 void check(int status, string msg);
 void* server_function(void* arg);
-void client_function(char* request);
+void client_function(char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* handle_connection(void* socket);
 
-int main() {
+int main(int argc, char* argv[]) {
     pthread_t server_thread;
     pthread_create(&server_thread, NULL, server_function, NULL);
 
     while (1) {
+        char portreq[5];
         char request[255];
+        memset(portreq, 0, 5);
         memset(request, 0, 255);
+        fgets(portreq, 5, stdin);
+        fflush(stdin);
         fgets(request, 255, stdin);
-        client_function(request);
+        int CLIENTPORT = atoi(portreq);
+        printf("%d incoming port\n", CLIENTPORT);
+        client_function(request, CLIENTPORT);
     }
 }
 
-void error(const char* msg) {
+void err(const char* msg) {
     perror(msg);
     exit(1);
 }
 
 void check(int status, string msg) {
     if (status < 0) {
-        error(msg.c_str());
+        err(msg.c_str());
     }
 }
 
@@ -55,7 +62,7 @@ void* server_function(void* arg) {
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
 
-    int portno = 8080;
+    int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(portno);
@@ -102,8 +109,8 @@ void* server_function(void* arg) {
     pthread_cond_destroy(&condQueue);
 }
 
-void client_function(char* request) {
-    int portno = 8081;
+void client_function(char* request, int CLIENTPORT) {
+    int portno = CLIENTPORT;
     int client_socket;
     check(client_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Opening PORT");
@@ -126,10 +133,10 @@ void client_function(char* request) {
 
     if (connect(client_socket, (struct sockaddr*)&server_address,
                 sizeof(server_address)) < 0)
-        error("Error Connecting");
+        err("Error Connecting");
 
     int n = write(client_socket, request, strlen(request));
-    if (n < 0) error("ERROR: writing to socket");
+    if (n < 0) err("ERROR: writing to socket");
 }
 
 void* start_thread(void* arg) {

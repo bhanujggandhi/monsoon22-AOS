@@ -20,7 +20,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condition_var = PTHREAD_COND_INITIALIZER;
 queue<int*> thread_queue;
 
-void error(const char* msg);
+void err(const char* msg);
 void check(int status, string msg);
 void* handle_connection(void* p_client_socket);
 void* thread_function(void* arg);
@@ -126,14 +126,14 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-void error(const char* msg) {
+void err(const char* msg) {
     perror(msg);
     exit(1);
 }
 
 void check(int status, string msg) {
     if (status < 0) {
-        error(msg.c_str());
+        err(msg.c_str());
     }
 }
 
