@@ -101,7 +101,8 @@ void* server_function(void* arg) {
         pthread_mutex_unlock(&mutexQueue);
     }
 
-    close(server_socket);
+    // close(server_socket);
+    shutdown(server_socket, SHUT_RDWR);
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
 }

@@ -10,7 +10,7 @@
 #include <string>
 
 #define THREAD_POOL_SIZE 4
-#define SERVERPORT 8080
+#define SERVERPORT 8081
 
 using namespace std;
 
@@ -18,7 +18,7 @@ pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
 
-void error(const string msg);
+void err(const char* msg);
 void check(int status, string msg);
 void* server_function(void* arg);
 void client_function(char* request, int CLIENTPORT);
@@ -38,15 +38,12 @@ int main(int argc, char* argv[]) {
         fflush(stdin);
         fgets(request, 255, stdin);
         int CLIENTPORT = atoi(portreq);
-        printf("%d incoming port\n", CLIENTPORT);
+        if (CLIENTPORT == 0) continue;
         client_function(request, CLIENTPORT);
     }
 }
 
-void err(const char* msg) {
-    perror(msg);
-    exit(1);
-}
+void err(const char* msg) { printf("%s\n", msg); }
 
 void check(int status, string msg) {
     if (status < 0) {
@@ -104,7 +101,8 @@ void* server_function(void* arg) {
         pthread_mutex_unlock(&mutexQueue);
     }
 
-    close(server_socket);
+    // close(server_socket);
+    shutdown(server_socket, SHUT_RDWR);
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
 }
@@ -132,8 +130,10 @@ void client_function(char* request, int CLIENTPORT) {
     server_address.sin_port = htons(portno);
 
     if (connect(client_socket, (struct sockaddr*)&server_address,
-                sizeof(server_address)) < 0)
+                sizeof(server_address)) < 0) {
         err("Error Connecting");
+        return;
+    }
 
     int n = write(client_socket, request, strlen(request));
     if (n < 0) err("ERROR: writing to socket");
