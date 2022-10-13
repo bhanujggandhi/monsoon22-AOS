@@ -55,7 +55,7 @@ void* server_function(void* arg) {
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
 
-    int portno = 8081;
+    int portno = 8080;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(portno);
@@ -103,7 +103,7 @@ void* server_function(void* arg) {
 }
 
 void client_function(char* request) {
-    int portno = 8080;
+    int portno = 8081;
     int client_socket;
     check(client_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Opening PORT");

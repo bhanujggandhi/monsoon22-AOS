@@ -1,6 +1,6 @@
 CC = g++
 CFLAGS = -g
-BINS = server client
+BINS = tracker peer
 
 all: $(BINS)
 
