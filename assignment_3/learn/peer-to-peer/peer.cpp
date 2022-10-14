@@ -340,12 +340,43 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("%s\n", resarr[1].c_str());
         }
     } else if (reqarr[0] == "accept_request") {
-        if (reqarr.size() < 3) {
+        if (reqarr.size() != 3) {
             printf("Invalid number of arguments\n");
             printf("USAGE: accept_request <group_id> <user_id>");
             return;
         }
 
+        if (!loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+
+        string preq = req + " " + userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (req == "list_groups") {
+        if (reqarr.size() != 1) {
+            printf("Invalid number of arguments\n");
+            printf("USAGE: list_groups");
+            return;
+        }
         if (!loggedin) {
             printf("You are not logged! Please login\n");
             return;

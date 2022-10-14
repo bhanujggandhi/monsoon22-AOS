@@ -486,7 +486,6 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        printf("GROUP ID%s\n", groupid.c_str());
         auto currGroup = grouptomap[groupid];
 
         if (currGroup->adminid != userid) {
@@ -501,8 +500,6 @@ void* handle_connection(void* arg) {
             greqParse += to_string(i) + ". " + uid + "\n";
             i++;
         }
-        printf("%ld\n", currGroup->requests.size());
-        printf("There are requests:\n%s", greqParse.c_str());
         string msg = "2:Pending Requests:\n" + greqParse;
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
@@ -553,6 +550,31 @@ void* handle_connection(void* arg) {
             "2:" + groupid + ":" + userid + " is the member of the group now\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
+    } else if (reqarr[0] == "list_groups") {
+        string userid = reqarr[1];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        string greqParse = "";
+        long i = 1;
+        for (auto gid : grouptomap) {
+            greqParse += to_string(i) + ". " + gid.first + "\n";
+            i++;
+        }
+        string msg = "2:All Groups:\n" + greqParse;
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
             string msg = "1:User does not exist\n";
