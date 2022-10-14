@@ -49,12 +49,9 @@ void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
-    // if (argc < 2) {
-    //     argv[1] = "127.0.0.1:8080";
-    // }
-    // char* ipport = "127.0.0.1:8080";
+    char* ipport = "127.0.0.1:8080";
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
+    pthread_create(&server_thread, NULL, server_function, (void*)ipport);
 
     while (1) {
         char request[255];
@@ -383,11 +380,46 @@ void* handle_connection(void* arg) {
         newGroup.groupid = groupid;
         newGroup.members.insert(userid);
 
+        grouptomap.insert({groupid, newGroup});
+
         auto curruser = usertomap[userid];
         curruser.groups.insert(groupid);
         curruser.mygroups.insert(groupid);
 
         string msg = "2:" + groupid + ":Group created successfully\n";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+    } else if (reqarr[0] == "join_group") {
+        string groupid = reqarr[1];
+        string userid = reqarr[2];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        if (grouptomap.find(groupid) == grouptomap.end()) {
+            string msg =
+                "1:Group id does not exist. Please enter a valid one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        auto currGroup = grouptomap[groupid];
+
+        if (currGroup.members.find(userid) != currGroup.members.end()) {
+            string msg = "1:User is already a member of the group\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        currGroup.requests.insert(userid);
+        string msg = "2:" + groupid + ":Request sent successfully\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
     } else if (reqarr[0] == "logout") {
