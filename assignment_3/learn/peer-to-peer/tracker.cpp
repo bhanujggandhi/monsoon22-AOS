@@ -33,8 +33,8 @@ struct Group {
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
-unordered_map<string, User> usertomap;
-unordered_map<string, Group> grouptomap;
+unordered_map<string, User*> usertomap;
+unordered_map<string, Group*> grouptomap;
 // unordered_map<string, string> user_map;
 unordered_map<string, bool> loggedin_map;
 
@@ -316,9 +316,9 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        User newUser;
-        newUser.userid = userid;
-        newUser.password = password;
+        User* newUser = new User();
+        newUser->userid = userid;
+        newUser->password = password;
         usertomap.insert({userid, newUser});
         loggedin_map[userid] = true;
         string res = "2:" + userid + ":User created successfully!\n";
@@ -342,7 +342,7 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        if (password == usertomap[userid].password) {
+        if (password == usertomap[userid]->password) {
             loggedin_map[userid] = true;
             string res = "2:" + userid + ":User logged in successfully!\n";
             write(client_socket, res.c_str(), res.size());
@@ -375,16 +375,16 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        Group newGroup;
-        newGroup.adminid = userid;
-        newGroup.groupid = groupid;
-        newGroup.members.insert(userid);
+        Group* newGroup = new Group();
+        newGroup->adminid = userid;
+        newGroup->groupid = groupid;
+        newGroup->members.insert(userid);
 
         grouptomap.insert({groupid, newGroup});
 
-        auto curruser = usertomap[userid];
-        curruser.groups.insert(groupid);
-        curruser.mygroups.insert(groupid);
+        auto* curruser = usertomap[userid];
+        curruser->groups.insert(groupid);
+        curruser->mygroups.insert(groupid);
 
         string msg = "2:" + groupid + ":Group created successfully\n";
         write(client_socket, msg.c_str(), msg.size());
@@ -412,13 +412,13 @@ void* handle_connection(void* arg) {
 
         auto currGroup = grouptomap[groupid];
 
-        if (currGroup.members.find(userid) != currGroup.members.end()) {
+        if (currGroup->members.find(userid) != currGroup->members.end()) {
             string msg = "1:User is already a member of the group\n";
             write(client_socket, msg.c_str(), msg.size());
             return NULL;
         }
-
-        currGroup.requests.insert(userid);
+        currGroup->requests.insert(userid);
+        printf("Group size: %ld", currGroup->requests.size());
         string msg = "2:" + groupid + ":Request sent successfully\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
@@ -447,22 +447,66 @@ void* handle_connection(void* arg) {
 
         auto currGroup = grouptomap[groupid];
 
-        if (currGroup.members.find(userid) == currGroup.members.end()) {
+        if (currGroup->members.find(userid) == currGroup->members.end()) {
             string msg = "1:User is not the member of this group\n";
             write(client_socket, msg.c_str(), msg.size());
             return NULL;
         }
 
-        if (currGroup.adminid == userid) {
+        if (currGroup->adminid == userid) {
             string msg = "1:Admin cannot leave the group\n";
             write(client_socket, msg.c_str(), msg.size());
             return NULL;
         }
 
-        currGroup.members.erase(userid);
+        currGroup->members.erase(userid);
         string msg = "2:" + groupid + ":Group left successfully\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
+    } else if (reqarr[0] == "list_requests") {
+        string groupid = reqarr[1];
+        string userid = reqarr[2];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (grouptomap.find(groupid) == grouptomap.end()) {
+            string msg =
+                "1:Group id does not exist. Please enter a valid one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        printf("GROUP ID%s\n", groupid.c_str());
+        auto currGroup = grouptomap[groupid];
+
+        if (currGroup->adminid != userid) {
+            string msg = "1:User does not have admin rights\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        string greqParse = "";
+        long i = 1;
+        for (auto uid : currGroup->requests) {
+            greqParse += to_string(i) + ". " + uid + "\n";
+            i++;
+        }
+        printf("%ld\n", currGroup->requests.size());
+        printf("There are requests:\n%s", greqParse.c_str());
+        string msg = "2:Pending Requests:\n" + greqParse;
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
             string msg = "1:User does not exist\n";

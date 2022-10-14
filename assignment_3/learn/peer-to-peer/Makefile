@@ -1,20 +1,14 @@
 CC = g++
 CFLAGS = -g
-BINS = tracker peer peer2
+BINS = tracker peer peer2 peer3
 
 all: $(BINS)
 
-tracker: tracker.cpp
-	$(CC) $(CFLAGS) -o $@ tracker.cpp
-
-peer: peer.cpp
-	$(CC) $(CFLAGS) -o $@ peer.cpp
-
-peer2: peer2.cpp
-	$(CC) $(CFLAGS) -o $@ peer2.cpp
-
+%: %.cpp
+	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
 	rm -rf peer
 	rm -rf tracker
 	rm -rf peer2
+	rm -rf peer3

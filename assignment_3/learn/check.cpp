@@ -7,14 +7,18 @@ int main() {
 
     st.insert("bgroup");
     st.insert("igroup");
+    st.insert("agroup");
+    st.insert("vgroup");
+    st.insert("fgroup");
+    st.insert("cgroup");
 
-    // for (auto x : st) {
-    //     cout << x << endl;
-    // }
-
-    st.erase("bgroup");
-    for (auto x : st) {
-        cout << x << endl;
+    string greqParse = "";
+    int i = 1;
+    for (auto uid : st) {
+        greqParse += to_string(i) + ". " + uid + "\n";
+        i++;
     }
+
+    cout << greqParse;
     return 0;
 }
