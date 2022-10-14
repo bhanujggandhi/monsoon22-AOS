@@ -507,6 +507,52 @@ void* handle_connection(void* arg) {
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
 
+    } else if (reqarr[0] == "accept_request") {
+        string groupid = reqarr[1];
+        string userid = reqarr[2];
+        string curruserid = reqarr[3];
+
+        if (usertomap.find(userid) == usertomap.end() or
+            usertomap.find(curruserid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (loggedin_map[curruserid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (grouptomap.find(groupid) == grouptomap.end()) {
+            string msg =
+                "1:Group id does not exist. Please enter a valid one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        auto currGroup = grouptomap[groupid];
+
+        if (currGroup->requests.find(userid) == currGroup->requests.end()) {
+            string msg = "1:User has not requested to join the group\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (currGroup->adminid != curruserid) {
+            string msg = "1:You do not have admin rights for this group\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        currGroup->requests.erase(userid);
+        currGroup->members.insert(userid);
+
+        string msg =
+            "2:" + groupid + ":" + userid + " is the member of the group now\n";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
             string msg = "1:User does not exist\n";
