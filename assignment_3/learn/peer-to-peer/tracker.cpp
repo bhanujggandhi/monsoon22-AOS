@@ -575,6 +575,47 @@ void* handle_connection(void* arg) {
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
 
+    } else if (reqarr[0] == "list_files") {
+        string groupid = reqarr[1];
+        string userid = reqarr[2];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (grouptomap.find(groupid) == grouptomap.end()) {
+            string msg =
+                "1:Group id does not exist. Please enter a valid one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        auto currGroup = grouptomap[groupid];
+
+        if (currGroup->members.find(userid) == currGroup->members.end()) {
+            string msg = "1:User is not a member of this group\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        string greqParse = "";
+        long i = 1;
+        for (auto fid : currGroup->files) {
+            greqParse += to_string(i) + ". " + fid + "\n";
+            i++;
+        }
+        string msg = "2:All Files:\n" + greqParse;
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
             string msg = "1:User does not exist\n";
