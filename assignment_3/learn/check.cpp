@@ -1,24 +1,50 @@
+// C++ Standard Library
 #include <bits/stdc++.h>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+
+// OpenSSL Library
+#include <openssl/sha.h>
 
 using namespace std;
 
-int main() {
-    unordered_set<string> st;
-
-    st.insert("bgroup");
-    st.insert("igroup");
-    st.insert("agroup");
-    st.insert("vgroup");
-    st.insert("fgroup");
-    st.insert("cgroup");
-
-    string greqParse = "";
-    int i = 1;
-    for (auto uid : st) {
-        greqParse += to_string(i) + ". " + uid + "\n";
-        i++;
+string generateSHA(string filepath, long offset) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+        printf("ERROR: bad path %s\n", resolvedpath);
+        return NULL;
     }
 
-    cout << greqParse;
+    FILE *fd = fopen(resolvedpath, "rb");
+    char shabuf[SHA_DIGEST_LENGTH];
+    bzero(shabuf, sizeof(shabuf));
+    fseek(fd, offset, SEEK_SET);
+    fread(shabuf, 1, 20, fd);
+
+    unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+    char buffer[SHA_DIGEST_LENGTH * 2];
+    int i;
+    bzero(buffer, sizeof(buffer));
+    memset(SHA_Buffer, '\0', sizeof(SHA_Buffer));
+    SHA1((unsigned char *)shabuf, 20, SHA_Buffer);
+
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char *)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+    }
+
+    fclose(fd);
+    string shastr(buffer);
+    return shastr;
+}
+
+int main(int argc, char *argv[]) {
+    cout << generateSHA("./check.cpp", 0) << endl;
     return 0;
 }

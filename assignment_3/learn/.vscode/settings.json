@@ -3,6 +3,7 @@
     "thread": "cpp",
     "string": "cpp",
     "limits": "cpp",
-    "new": "cpp"
+    "new": "cpp",
+    "cstdlib": "cpp"
   }
 }
