@@ -453,6 +453,12 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
+        if (currGroup.adminid == userid) {
+            string msg = "1:Admin cannot leave the group\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
         currGroup.members.erase(userid);
         string msg = "2:" + groupid + ":Group left successfully\n";
         write(client_socket, msg.c_str(), msg.size());
