@@ -14,11 +14,28 @@
 
 using namespace std;
 
+struct User {
+    string userid;
+    string password;
+    unordered_set<string> files;
+    unordered_set<string> mygroups;
+    unordered_set<string> groups;
+};
+struct Group {
+    string groupid;
+    string adminid;
+    unordered_set<string> members;
+    unordered_set<string> files;
+    unordered_set<string> requests;
+};
+
 // Globals
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
-unordered_map<string, string> user_map;
+unordered_map<string, User> usertomap;
+unordered_map<string, Group> grouptomap;
+// unordered_map<string, string> user_map;
 unordered_map<string, bool> loggedin_map;
 
 // Functions
@@ -32,6 +49,10 @@ void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
+    // if (argc < 2) {
+    //     argv[1] = "127.0.0.1:8080";
+    // }
+    // char* ipport = "127.0.0.1:8080";
     pthread_t server_thread;
     pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
 
@@ -274,19 +295,23 @@ void* handle_connection(void* arg) {
     vector<string> reqarr;
     string req(request);
     splitutility(req, ' ', reqarr);
+    if (reqarr.empty()) {
+        string msg = "Something went wrong\n";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
+    }
 
     if (reqarr[0] == "create_user") {
-        if (reqarr.size() > 3) {
-            string msg =
-                "1:Invalid Number of arguments for Create User\nUSAGE - "
-                "create_user <user_id> <password>\n";
+        if (reqarr.size() != 3) {
+            string msg = "1:Invalid Number of arguments for Create ";
+            msg += "User\nUSAGE-create_user<user_id><password>\n ";
             write(client_socket, msg.c_str(), msg.size());
             return NULL;
         }
         string userid = reqarr[1];
         string password = reqarr[2];
 
-        if (user_map.find(userid) != user_map.end()) {
+        if (usertomap.find(userid) != usertomap.end()) {
             string msg =
                 "1:User ID already exists\nEither Login or create an account "
                 "with unique User ID\n";
@@ -294,9 +319,12 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        user_map.insert({userid, password});
+        User newUser;
+        newUser.userid = userid;
+        newUser.password = password;
+        usertomap.insert({userid, newUser});
         loggedin_map[userid] = true;
-        string res = "1:" + userid + ":User created successfully!\n";
+        string res = "2:" + userid + ":User created successfully!\n";
         write(client_socket, res.c_str(), res.size());
     } else if (reqarr[0] == "login") {
         if (reqarr.size() > 3) {
@@ -309,7 +337,7 @@ void* handle_connection(void* arg) {
         string userid = reqarr[1];
         string password = reqarr[2];
 
-        if (user_map.find(userid) == user_map.end()) {
+        if (usertomap.find(userid) == usertomap.end()) {
             string msg =
                 "1:User ID does not exist\nPlease create an account to "
                 "continue\n";
@@ -317,7 +345,7 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        if (password == user_map[userid]) {
+        if (password == usertomap[userid].password) {
             loggedin_map[userid] = true;
             string res = "2:" + userid + ":User logged in successfully!\n";
             write(client_socket, res.c_str(), res.size());
@@ -329,18 +357,56 @@ void* handle_connection(void* arg) {
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
 
+    } else if (reqarr[0] == "create_group") {
+        string groupid = reqarr[1];
+        string userid = reqarr[2];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        if (grouptomap.find(groupid) != grouptomap.end()) {
+            string msg =
+                "1:Group id already exists, please enter a unique one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        Group newGroup;
+        newGroup.adminid = userid;
+        newGroup.groupid = groupid;
+        newGroup.members.insert(userid);
+
+        auto curruser = usertomap[userid];
+        curruser.groups.insert(groupid);
+        curruser.mygroups.insert(groupid);
+
+        string msg = "2:" + groupid + ":Group created successfully\n";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+        if (loggedin_map[reqarr[1]] == false) {
             string msg = "1:User is not logged in\n";
             write(client_socket, msg.c_str(), msg.size());
             return NULL;
         }
         loggedin_map[reqarr[1]] = false;
-        string msg = "1:Logged out successfully!\n";
+        string msg = "2:" + reqarr[1] + ":Logged out successfully!\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
     } else {
-        write(client_socket, "0:Please enter a valid command\n", 29);
+        write(client_socket, "1:Please enter a valid command\n", 29);
         return NULL;
     }
 

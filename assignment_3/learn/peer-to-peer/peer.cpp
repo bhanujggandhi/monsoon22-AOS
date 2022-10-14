@@ -156,9 +156,10 @@ void client_function(const char* request, int CLIENTPORT) {
 
     vector<string> reqarr;
     string req(request);
+    if (req.length() > 1) {
+        req.pop_back();
+    }
     splitutility(req, ' ', reqarr);
-
-    printf("command: %s\n", reqarr[0].c_str());
 
     char buffer[BUFSIZ];
     memset(buffer, 0, BUFSIZ);
@@ -186,6 +187,7 @@ void client_function(const char* request, int CLIENTPORT) {
         if (loggedin) {
             printf("You are already logged in as %s\nPlease logout first!\n",
                    userid.c_str());
+            return;
         }
         int n = write(server_socket, request, strlen(request));
         if (n < 0) err("ERROR: writing to socket");
@@ -207,12 +209,49 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-    } else if (req == "logout\n") {
+    } else if (reqarr[0] == "create_group") {
+        if (reqarr.size() < 2) {
+            printf("Invalid number of arguments\n");
+            printf("USAGE: create_group <group_id>");
+            return;
+        }
+
+        if (!loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+        string preq = req + " " + userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("%s\n", resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+
+    } else if (req == "logout") {
         if (loggedin == false) {
             printf("You are not logged in!\n");
+
         } else {
-            req = req + " " + userid;
-            int n = write(server_socket, req.c_str(), req.size());
+            req = req + " " + userid + "\n";
+            printf("Sending req %s", req.c_str());
+            char charreq[req.length() + 1];
+            strcpy(charreq, req.c_str());
+            charreq[req.length() + 1] = 0;
+            int n = send(server_socket, charreq, strlen(charreq), 0);
             if (n < 0) err("ERROR: writing to socket");
 
             size_t size;
@@ -227,13 +266,12 @@ void client_function(const char* request, int CLIENTPORT) {
 
             if (resarr[0] == "2") {
                 userid = resarr[1];
-                loggedin = true;
+                loggedin = false;
                 printf("%s\n", resarr[2].c_str());
             } else if (resarr[0] == "1") {
                 printf("%s\n", resarr[1].c_str());
             }
         }
-
     } else {
         printf("Invalid command\nTry again!\n");
         return;
