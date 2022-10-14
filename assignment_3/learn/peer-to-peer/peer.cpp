@@ -30,7 +30,7 @@ void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, NULL);
+    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
 
     while (1) {
         char request[255];
@@ -71,6 +71,14 @@ void splitutility(string str, char del, vector<string>& arr) {
 }
 
 void* server_function(void* arg) {
+    // Parse IP:PORT
+    char* ipport = (char*)arg;
+    vector<string> ipportsplit;
+    string ipportstr(ipport);
+    splitutility(ipportstr, ':', ipportsplit);
+
+    int portno = stoi(ipportsplit[1]);
+
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Socket Cannot be Opened!");
@@ -78,7 +86,7 @@ void* server_function(void* arg) {
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
 
-    int portno = SERVERPORT;
+    // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(portno);

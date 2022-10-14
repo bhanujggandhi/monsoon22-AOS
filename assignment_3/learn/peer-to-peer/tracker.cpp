@@ -49,9 +49,9 @@ void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
-    char* ipport = "127.0.0.1:8080";
+    // char* ipport = "127.0.0.1:8080";
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, (void*)ipport);
+    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
 
     while (1) {
         char request[255];
