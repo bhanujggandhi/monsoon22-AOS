@@ -33,7 +33,7 @@ struct FileStr {
     string filepath;
     string SHA;
     long filesize;
-    bool shareable;
+    string availableat;
     unordered_set<string> users;
 };
 
@@ -625,6 +625,7 @@ void* handle_connection(void* arg) {
         string sha = reqarr[3];
         long filesize = stol(reqarr[4]);
         string userid = reqarr[5];
+        string availaddr = reqarr[6];
 
         if (usertomap.find(userid) == usertomap.end()) {
             string msg = "1:User does not exist\n";
@@ -650,8 +651,8 @@ void* handle_connection(void* arg) {
         newfile->filepath = filepath;
         newfile->filesize = filesize;
         newfile->SHA = sha;
-        newfile->shareable = true;
         newfile->users.insert(usertomap[userid]->address);
+        newfile->availableat = availaddr;
 
         filetomap.insert({filepath, newfile});
 

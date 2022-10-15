@@ -545,7 +545,8 @@ void client_function(const char* request, int CLIENTPORT) {
         string resp(resolvedpath);
 
         string preq = reqarr[0] + " " + resp + " " + reqarr[2] + " " + sha +
-                      " " + to_string(filesize) + " " + currUser.userid + "\n";
+                      " " + to_string(filesize) + " " + currUser.userid + " " +
+                      currUser.address + "\n";
 
         printf("%s\n", preq.c_str());
 
