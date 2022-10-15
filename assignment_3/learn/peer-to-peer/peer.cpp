@@ -436,7 +436,7 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("%s\n", resarr[1].c_str());
         }
     } else if (reqarr[0] == "list_files") {
-        if (reqarr.size() != 1) {
+        if (reqarr.size() != 2) {
             printf("Invalid number of arguments\n");
             printf("USAGE: list_files <group_id>");
             return;
@@ -482,10 +482,19 @@ void client_function(const char* request, int CLIENTPORT) {
         long filesize = getfilesize(reqarr[1]);
         string groupid = reqarr[2];
 
-        printf("SHA: %s\nFileSize: %ld\nGroupId: %s\n", sha.c_str(), filesize,
-               groupid.c_str());
+        char resolvedpath[_POSIX_PATH_MAX];
 
-        string preq = "hello";
+        if (realpath(reqarr[1].c_str(), resolvedpath) == NULL) {
+            printf("ERROR: bad path %s\n", resolvedpath);
+            return;
+        }
+
+        string resp(resolvedpath);
+
+        string preq = reqarr[0] + " " + resp + " " + reqarr[2] + " " + sha +
+                      " " + to_string(filesize) + " " + currUser.userid + "\n";
+
+        printf("%s\n", preq.c_str());
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -541,7 +550,7 @@ void client_function(const char* request, int CLIENTPORT) {
         return;
     }
 
-    printf("%s\n", currUser.userid.c_str());
+    // printf("%s\n", currUser.userid.c_str());
 
     close(server_socket);
 }

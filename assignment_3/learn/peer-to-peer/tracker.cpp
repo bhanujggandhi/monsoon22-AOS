@@ -18,7 +18,7 @@ struct User {
     string userid;
     string password;
     string address;
-    unordered_set<string> files;
+    // unordered_set<string> files;
     unordered_set<string> mygroups;
     unordered_set<string> groups;
 };
@@ -33,6 +33,7 @@ struct FileStr {
     string filepath;
     string SHA;
     long filesize;
+    bool shareable;
     unordered_set<string> users;
 };
 
@@ -42,7 +43,6 @@ pthread_cond_t condQueue;
 queue<int*> thread_queue;
 unordered_map<string, User*> usertomap;
 unordered_map<string, Group*> grouptomap;
-// unordered_map<string, string> user_map;
 unordered_map<string, bool> loggedin_map;
 unordered_map<string, FileStr*> filetomap;
 
@@ -616,6 +616,48 @@ void* handle_connection(void* arg) {
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
 
+    } else if (reqarr[0] == "upload_file") {
+        string filepath = reqarr[1];
+        string groupid = reqarr[2];
+        string sha = reqarr[3];
+        long filesize = stol(reqarr[4]);
+        string userid = reqarr[5];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (grouptomap.find(groupid) == grouptomap.end()) {
+            string msg =
+                "1:Group id does not exist. Please enter a valid one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        FileStr* newfile = new FileStr();
+
+        newfile->filepath = filepath;
+        newfile->filesize = filesize;
+        newfile->SHA = sha;
+        newfile->shareable = true;
+        newfile->users.insert(userid);
+
+        filetomap.insert({filepath, newfile});
+
+        auto currGroup = grouptomap[groupid];
+        currGroup->files.insert(filepath);
+
+        string msg = "2:" + groupid + ":File uploaded succesfully";
+        write(client_socket, msg.c_str(), msg.size());
+        return NULL;
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
             string msg = "1:User does not exist\n";
@@ -632,7 +674,8 @@ void* handle_connection(void* arg) {
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
     } else {
-        write(client_socket, "1:Please enter a valid command\n", 29);
+        string res = "1:Please enter a valid command";
+        write(client_socket, res.c_str(), res.size());
         return NULL;
     }
 
