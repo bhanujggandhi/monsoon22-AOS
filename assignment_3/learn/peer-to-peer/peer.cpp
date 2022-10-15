@@ -3,10 +3,12 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <openssl/sha.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define THREAD_POOL_SIZE 4
@@ -14,23 +16,32 @@
 
 using namespace std;
 
+struct User {
+    string userid;
+    bool loggedin;
+    string address;
+};
+
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
-string userid = "";
-bool loggedin = false;
+User currUser;
 
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
+long getfilesize(string filename);
+string generateSHA(string filepath, long offset);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
+    string str = "127.0.0.1:2001";
+    currUser.address = str;
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
+    pthread_create(&server_thread, NULL, server_function, (void*)str.c_str());
 
     while (1) {
         char request[255];
@@ -172,7 +183,16 @@ void client_function(const char* request, int CLIENTPORT) {
     char buffer[BUFSIZ];
     memset(buffer, 0, BUFSIZ);
     if (reqarr[0] == "create_user") {
-        int n = write(server_socket, request, strlen(request));
+        if (reqarr.size() != 3) {
+            string msg =
+                "1:Invalid Number of arguments for Login\nUSAGE - create_user "
+                "<user_id> <password>\n";
+            printf("%s", msg.c_str());
+            return;
+        }
+
+        req += " " + currUser.address + "\n";
+        int n = write(server_socket, req.c_str(), req.size());
         if (n < 0) err("ERROR: writing to socket");
 
         size_t size;
@@ -185,19 +205,27 @@ void client_function(const char* request, int CLIENTPORT) {
         string res(buffer);
         splitutility(res, ':', resarr);
         if (resarr[0] == "2") {
-            userid = resarr[1];
-            loggedin = true;
+            currUser.userid = resarr[1];
+            currUser.loggedin = true;
             printf("%s\n", resarr[2].c_str());
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
     } else if (reqarr[0] == "login") {
-        if (loggedin) {
-            printf("You are already logged in as %s\nPlease logout first!\n",
-                   userid.c_str());
+        if (reqarr.size() != 3) {
+            string msg =
+                "1:Invalid Number of arguments for Login\nUSAGE - login "
+                "<user_id> <password>\n";
+            printf("%s", msg.c_str());
             return;
         }
-        int n = write(server_socket, request, strlen(request));
+        if (currUser.loggedin) {
+            printf("You are already logged in as %s\nPlease logout first!\n",
+                   currUser.userid.c_str());
+            return;
+        }
+        req += " " + currUser.address + "\n";
+        int n = write(server_socket, req.c_str(), req.size());
         if (n < 0) err("ERROR: writing to socket");
 
         size_t size;
@@ -211,8 +239,8 @@ void client_function(const char* request, int CLIENTPORT) {
         splitutility(res, ':', resarr);
 
         if (resarr[0] == "2") {
-            userid = resarr[1];
-            loggedin = true;
+            currUser.userid = resarr[1];
+            currUser.loggedin = true;
             printf("%s\n", resarr[2].c_str());
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
@@ -224,11 +252,11 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -248,7 +276,6 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-
     } else if (reqarr[0] == "join_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
@@ -256,12 +283,12 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -281,7 +308,6 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-
     } else if (reqarr[0] == "leave_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
@@ -289,12 +315,12 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -314,7 +340,6 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-
     } else if (reqarr[0] == "list_requests") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
@@ -322,12 +347,12 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -354,12 +379,12 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -385,12 +410,12 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("USAGE: list_groups");
             return;
         }
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -416,12 +441,51 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("USAGE: list_files <group_id>");
             return;
         }
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (reqarr[0] == "upload_file") {
+        if (reqarr.size() != 3) {
+            printf("Invalid number of arguments\n");
+            printf("USAGE: upload_file <file_path> <group_id>");
+            return;
+        }
+
+        if (!currUser.loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+
+        string sha = generateSHA(reqarr[1], 0);
+        long filesize = getfilesize(reqarr[1]);
+        string groupid = reqarr[2];
+
+        printf("SHA: %s\nFileSize: %ld\nGroupId: %s\n", sha.c_str(), filesize,
+               groupid.c_str());
+
+        string preq = "hello";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -442,11 +506,11 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("%s\n", resarr[1].c_str());
         }
     } else if (req == "logout") {
-        if (loggedin == false) {
+        if (currUser.loggedin == false) {
             printf("You are not logged in!\n");
 
         } else {
-            req = req + " " + userid + "\n";
+            req = req + " " + currUser.userid + "\n";
             printf("Sending req %s", req.c_str());
             char charreq[req.length() + 1];
             strcpy(charreq, req.c_str());
@@ -465,8 +529,8 @@ void client_function(const char* request, int CLIENTPORT) {
             splitutility(res, ':', resarr);
 
             if (resarr[0] == "2") {
-                userid = resarr[1];
-                loggedin = false;
+                currUser.userid = resarr[1];
+                currUser.loggedin = false;
                 printf("%s\n", resarr[2].c_str());
             } else if (resarr[0] == "1") {
                 printf("%s\n", resarr[1].c_str());
@@ -477,7 +541,7 @@ void client_function(const char* request, int CLIENTPORT) {
         return;
     }
 
-    printf("%s\n", userid.c_str());
+    printf("%s\n", currUser.userid.c_str());
 
     close(server_socket);
 }
@@ -575,4 +639,39 @@ void recieved_file(string path, int server_socket) {
     close(d);
 
     printf("File Recieved Succesfully!\n");
+}
+
+string generateSHA(string filepath, long offset) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+        printf("ERR: bad path %s\n", resolvedpath);
+        return NULL;
+    }
+
+    FILE* fd = fopen(resolvedpath, "rb");
+    char shabuf[SHA_DIGEST_LENGTH];
+    bzero(shabuf, sizeof(shabuf));
+    fseek(fd, offset, SEEK_SET);
+    fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+
+    unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+    char buffer[SHA_DIGEST_LENGTH * 2];
+    int i;
+    bzero(buffer, sizeof(buffer));
+    bzero(SHA_Buffer, sizeof(SHA_Buffer));
+    SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
+
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+    }
+
+    fclose(fd);
+    string shastr(buffer);
+    return shastr;
+}
+
+long getfilesize(string filename) {
+    struct stat sbuf;
+    int f = stat(filename.c_str(), &sbuf);
+    return f == 0 ? sbuf.st_size : -1;
 }

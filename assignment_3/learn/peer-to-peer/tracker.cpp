@@ -17,6 +17,7 @@ using namespace std;
 struct User {
     string userid;
     string password;
+    string address;
     unordered_set<string> files;
     unordered_set<string> mygroups;
     unordered_set<string> groups;
@@ -39,9 +40,9 @@ struct FileStr {
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
-pair<int, string> trackerinfo;
 unordered_map<string, User*> usertomap;
 unordered_map<string, Group*> grouptomap;
+// unordered_map<string, string> user_map;
 unordered_map<string, bool> loggedin_map;
 unordered_map<string, FileStr*> filetomap;
 
@@ -49,7 +50,6 @@ unordered_map<string, FileStr*> filetomap;
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
-void init_tracker(const char* filename, int port);
 void* server_function(void* arg);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
@@ -57,11 +57,9 @@ void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
-    string fname(argv[1]);
-    string tnum(argv[2]);
-    string param = fname + ":" + tnum;
+    // char* ipport = "127.0.0.1:8080";
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, (void*)param.c_str());
+    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
 
     while (1) {
         char request[255];
@@ -101,37 +99,6 @@ void splitutility(string str, char del, vector<string>& pth) {
     pth.push_back(temp);
 }
 
-void init_tracker(const char* filepath, int number) {
-    char resolvedpath[_POSIX_PATH_MAX];
-    if (realpath(filepath, resolvedpath) == NULL) {
-        printf("ERROR: bad path %s\n", resolvedpath);
-        return;
-    }
-    int i = 1;
-    bool flag = false;
-    std::ifstream file(resolvedpath);
-    if (file.is_open()) {
-        std::string line;
-        while (std::getline(file, line)) {
-            if (i == number) {
-                vector<string> arr;
-                splitutility(line, ':', arr);
-                trackerinfo.first = stoi(arr[1]);
-                trackerinfo.second = arr[0];
-                flag = true;
-            } else {
-                i++;
-                flag = false;
-            }
-        }
-        file.close();
-        if (!flag) {
-            printf("Tracker number %d not found!\n", number);
-            exit(1);
-        }
-    }
-}
-
 void* server_function(void* arg) {
     // Parse IP:PORT
     char* ipport = (char*)arg;
@@ -139,9 +106,7 @@ void* server_function(void* arg) {
     string ipportstr(ipport);
     splitutility(ipportstr, ':', ipportsplit);
 
-    init_tracker(ipportsplit[0].c_str(), stoi(ipportsplit[1]));
-
-    int portno = trackerinfo.first;
+    int portno = stoi(ipportsplit[1]);
 
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
@@ -152,7 +117,7 @@ void* server_function(void* arg) {
 
     // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
-    if (inet_pton(AF_INET, trackerinfo.second.c_str(), &server_addr.sin_addr) ==
+    if (inet_pton(AF_INET, ipportsplit[0].c_str(), &server_addr.sin_addr) ==
         0) {
         perror("Invalid IP");
         exit(1);
@@ -342,14 +307,9 @@ void* handle_connection(void* arg) {
     }
 
     if (reqarr[0] == "create_user") {
-        if (reqarr.size() != 3) {
-            string msg = "1:Invalid Number of arguments for Create ";
-            msg += "User\nUSAGE-create_user<user_id><password>\n ";
-            write(client_socket, msg.c_str(), msg.size());
-            return NULL;
-        }
         string userid = reqarr[1];
         string password = reqarr[2];
+        string address = reqarr[3];
 
         if (usertomap.find(userid) != usertomap.end()) {
             string msg =
@@ -362,20 +322,15 @@ void* handle_connection(void* arg) {
         User* newUser = new User();
         newUser->userid = userid;
         newUser->password = password;
+        newUser->address = address;
         usertomap.insert({userid, newUser});
         loggedin_map[userid] = true;
         string res = "2:" + userid + ":User created successfully!\n";
         write(client_socket, res.c_str(), res.size());
     } else if (reqarr[0] == "login") {
-        if (reqarr.size() > 3) {
-            string msg =
-                "1:Invalid Number of arguments for Login\nUSAGE - login "
-                "<user_id> <password>\n";
-            write(client_socket, msg.c_str(), msg.size());
-            return NULL;
-        }
         string userid = reqarr[1];
         string password = reqarr[2];
+        string address = reqarr[3];
 
         if (usertomap.find(userid) == usertomap.end()) {
             string msg =
@@ -393,6 +348,8 @@ void* handle_connection(void* arg) {
         }
 
         loggedin_map[userid] = false;
+        auto currUser = usertomap[userid];
+        currUser->address = address;
         string msg = "1:Password is incorrect, please try again\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;

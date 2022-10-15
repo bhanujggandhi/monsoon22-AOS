@@ -1,14 +1,17 @@
 CC = g++
-CFLAGS = -g
-BINS = tracker peer peer2 peer3
+CFLAGS = -lcrypto
+BINS = peer peer2 peer3
 
-all: $(BINS)
+all: tracker $(BINS)
+
+tracker: tracker.cpp
+	$(CC) -o $@ $^
 
 %: %.cpp
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $^ $(CFLAGS) -o $@
 
 clean:
-	rm -rf peer
 	rm -rf tracker
+	rm -rf peer
 	rm -rf peer2
 	rm -rf peer3
