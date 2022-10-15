@@ -68,6 +68,9 @@ int main(int argc, char* argv[]) {
         fgets(request, 255, stdin);
         vector<string> parsedReq;
         string req(request);
+        if (req == "quit\n") {
+            exit(0);
+        }
         splitutility(req, ':', parsedReq);
         int CLIENTPORT = atoi(parsedReq[0].c_str());
         // int CLIENTPORT = 8081;
