@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-// #include <openssl/sha.h>
+#include <openssl/sha.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #define THREAD_POOL_SIZE 4
-#define SERVERPORT 8081
+#define SERVERPORT 8082
 
 using namespace std;
 
@@ -34,7 +34,7 @@ void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
 void connecttotracker(const char* filepath);
 long getfilesize(string filename);
-// string generateSHA(string filepath, long offset);
+string generateSHA(string filepath, long offset);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* handle_connection(void* socket);
@@ -300,7 +300,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "create_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: create_group <group_id>");
+            printf("USAGE: create_group <group_id>\n");
             return;
         }
 
@@ -331,7 +331,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "join_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: join_group <group_id>");
+            printf("USAGE: join_group <group_id>\n");
             return;
         }
 
@@ -363,7 +363,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "leave_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: join_group <group_id>");
+            printf("USAGE: join_group <group_id>\n");
             return;
         }
 
@@ -395,7 +395,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "list_requests") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: list_requests <group_id>");
+            printf("USAGE: list_requests <group_id>\n");
             return;
         }
 
@@ -427,7 +427,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "accept_request") {
         if (reqarr.size() != 3) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: accept_request <group_id> <user_id>");
+            printf("USAGE: accept_request <group_id> <user_id>\n");
             return;
         }
 
@@ -459,7 +459,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (req == "list_groups") {
         if (reqarr.size() != 1) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: list_groups");
+            printf("USAGE: list_groups\n");
             return;
         }
         if (!currUser.loggedin) {
@@ -490,7 +490,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "list_files") {
         if (reqarr.size() != 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: list_files <group_id>");
+            printf("USAGE: list_files <group_id>\n");
             return;
         }
         if (!currUser.loggedin) {
@@ -521,7 +521,7 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "upload_file") {
         if (reqarr.size() != 3) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: upload_file <file_path> <group_id>");
+            printf("USAGE: upload_file <file_path> <group_id>\n");
             return;
         }
 
@@ -530,8 +530,8 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        // string sha = generateSHA(reqarr[1], 0);
-        string sha = "hello";
+        string sha = generateSHA(reqarr[1], 0);
+        // string sha = "hello";
         long filesize = getfilesize(reqarr[1]);
         string groupid = reqarr[2];
 
@@ -546,7 +546,7 @@ void client_function(const char* request, int CLIENTPORT) {
 
         string preq = reqarr[0] + " " + resp + " " + reqarr[2] + " " + sha +
                       " " + to_string(filesize) + " " + currUser.userid + " " +
-                      currUser.address + "\n";
+                      "\n";
 
         printf("%s\n", preq.c_str());
 
@@ -568,6 +568,41 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
+    } else if (reqarr[0] == "download_file") {
+        if (reqarr.size() != 4) {
+            printf("Invalid usage of command\n");
+            printf(
+                "USAGE: download_file <group_id> <file_name> "
+                "<destination_path>\n");
+            return;
+        }
+
+        if (!currUser.loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+
+        string preq = req + " " + currUser.userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+        printf("%s\n", buffer);
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+
     } else if (req == "logout") {
         if (currUser.loggedin == false) {
             printf("You are not logged in!\n");
@@ -704,34 +739,34 @@ void recieved_file(string path, int server_socket) {
     printf("File Recieved Succesfully!\n");
 }
 
-// string generateSHA(string filepath, long offset) {
-//     char resolvedpath[_POSIX_PATH_MAX];
-//     if (realpath(filepath.c_str(), resolvedpath) == NULL) {
-//         printf("ERR: bad path %s\n", resolvedpath);
-//         return NULL;
-//     }
+string generateSHA(string filepath, long offset) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+        printf("ERR: bad path %s\n", resolvedpath);
+        return NULL;
+    }
 
-//     FILE* fd = fopen(resolvedpath, "rb");
-//     char shabuf[SHA_DIGEST_LENGTH];
-//     bzero(shabuf, sizeof(shabuf));
-//     fseek(fd, offset, SEEK_SET);
-//     fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+    FILE* fd = fopen(resolvedpath, "rb");
+    char shabuf[SHA_DIGEST_LENGTH];
+    bzero(shabuf, sizeof(shabuf));
+    fseek(fd, offset, SEEK_SET);
+    fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
 
-//     unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
-//     char buffer[SHA_DIGEST_LENGTH * 2];
-//     int i;
-//     bzero(buffer, sizeof(buffer));
-//     bzero(SHA_Buffer, sizeof(SHA_Buffer));
-//     SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
+    unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+    char buffer[SHA_DIGEST_LENGTH * 2];
+    int i;
+    bzero(buffer, sizeof(buffer));
+    bzero(SHA_Buffer, sizeof(SHA_Buffer));
+    SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
 
-//     for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
-//         sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
-//     }
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+    }
 
-//     fclose(fd);
-//     string shastr(buffer);
-//     return shastr;
-// }
+    fclose(fd);
+    string shastr(buffer);
+    return shastr;
+}
 
 long getfilesize(string filename) {
     struct stat sbuf;

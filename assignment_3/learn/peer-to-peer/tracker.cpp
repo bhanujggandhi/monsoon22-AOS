@@ -33,7 +33,7 @@ struct FileStr {
     string filepath;
     string SHA;
     long filesize;
-    string availableat;
+    unordered_set<string> userids;
     unordered_set<string> users;
 };
 
@@ -625,7 +625,6 @@ void* handle_connection(void* arg) {
         string sha = reqarr[3];
         long filesize = stol(reqarr[4]);
         string userid = reqarr[5];
-        string availaddr = reqarr[6];
 
         if (usertomap.find(userid) == usertomap.end()) {
             string msg = "1:User does not exist\n";
@@ -652,7 +651,7 @@ void* handle_connection(void* arg) {
         newfile->filesize = filesize;
         newfile->SHA = sha;
         newfile->users.insert(usertomap[userid]->address);
-        newfile->availableat = availaddr;
+        newfile->userids.insert(userid);
 
         filetomap.insert({filepath, newfile});
 
@@ -662,6 +661,70 @@ void* handle_connection(void* arg) {
         string msg = "2:" + groupid + ":File uploaded succesfully";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
+    } else if (reqarr[0] == "download_file") {
+        string groupid = reqarr[1];
+        string filepath = reqarr[2];
+        string userid = reqarr[4];
+
+        if (usertomap.find(userid) == usertomap.end()) {
+            string msg = "1:User does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (loggedin_map[userid] == false) {
+            string msg = "1:Please login first\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (grouptomap.find(groupid) == grouptomap.end()) {
+            string msg =
+                "1:Group id does not exist. Please enter a valid one\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        auto currGroup = grouptomap[groupid];
+
+        if (currGroup->members.find(userid) == currGroup->members.end()) {
+            string msg = "1:User is not a member of this group\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (filetomap.find(filepath) == filetomap.end() or
+            currGroup->files.find(filepath) == currGroup->files.end()) {
+            string msg = "1:File does not exist\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        auto currFile = filetomap[filepath];
+        string res = "1:" + currFile->SHA;
+        long countusers = 0;
+        for (auto uid : currFile->userids) {
+            auto peer = usertomap[uid];
+            if (loggedin_map[uid] == false) {
+                continue;
+            }
+
+            if (currFile->users.find(peer->address) == currFile->users.end()) {
+                continue;
+            }
+
+            res += " " + peer->address;
+            countusers++;
+        }
+        if (countusers == 0) {
+            string msg = "1:File is currently unavailable\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        write(client_socket, res.c_str(), res.size());
+        return NULL;
+
     } else if (reqarr[0] == "logout") {
         if (loggedin_map.find(reqarr[1]) == loggedin_map.end()) {
             string msg = "1:User does not exist\n";
