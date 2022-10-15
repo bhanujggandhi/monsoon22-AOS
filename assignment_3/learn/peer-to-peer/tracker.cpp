@@ -648,7 +648,7 @@ void* handle_connection(void* arg) {
         newfile->filesize = filesize;
         newfile->SHA = sha;
         newfile->shareable = true;
-        newfile->users.insert(userid);
+        newfile->users.insert(usertomap[userid]->address);
 
         filetomap.insert({filepath, newfile});
 
