@@ -26,13 +26,13 @@ string generateSHA(string filepath, long offset) {
     char shabuf[SHA_DIGEST_LENGTH];
     bzero(shabuf, sizeof(shabuf));
     fseek(fd, offset, SEEK_SET);
-    fread(shabuf, 1, 20, fd);
+    fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
 
     unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
     char buffer[SHA_DIGEST_LENGTH * 2];
     int i;
     bzero(buffer, sizeof(buffer));
-    memset(SHA_Buffer, '\0', sizeof(SHA_Buffer));
+    bzero(SHA_Buffer, sizeof(SHA_Buffer));
     SHA1((unsigned char *)shabuf, 20, SHA_Buffer);
 
     for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
@@ -45,6 +45,6 @@ string generateSHA(string filepath, long offset) {
 }
 
 int main(int argc, char *argv[]) {
-    cout << generateSHA("./check.cpp", 0) << endl;
+    cout << generateSHA("./readbyline.cpp", 0) << endl;
     return 0;
 }

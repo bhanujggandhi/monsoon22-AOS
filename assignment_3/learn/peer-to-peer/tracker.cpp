@@ -28,20 +28,28 @@ struct Group {
     unordered_set<string> files;
     unordered_set<string> requests;
 };
+struct FileStr {
+    string filepath;
+    string SHA;
+    long filesize;
+    unordered_set<string> users;
+};
 
 // Globals
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
+pair<int, string> trackerinfo;
 unordered_map<string, User*> usertomap;
 unordered_map<string, Group*> grouptomap;
-// unordered_map<string, string> user_map;
 unordered_map<string, bool> loggedin_map;
+unordered_map<string, FileStr*> filetomap;
 
 // Functions
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
+void init_tracker(const char* filename, int port);
 void* server_function(void* arg);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
@@ -49,9 +57,11 @@ void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
-    // char* ipport = "127.0.0.1:8080";
+    string fname(argv[1]);
+    string tnum(argv[2]);
+    string param = fname + ":" + tnum;
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
+    pthread_create(&server_thread, NULL, server_function, (void*)param.c_str());
 
     while (1) {
         char request[255];
@@ -91,6 +101,37 @@ void splitutility(string str, char del, vector<string>& pth) {
     pth.push_back(temp);
 }
 
+void init_tracker(const char* filepath, int number) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath, resolvedpath) == NULL) {
+        printf("ERROR: bad path %s\n", resolvedpath);
+        return;
+    }
+    int i = 1;
+    bool flag = false;
+    std::ifstream file(resolvedpath);
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            if (i == number) {
+                vector<string> arr;
+                splitutility(line, ':', arr);
+                trackerinfo.first = stoi(arr[1]);
+                trackerinfo.second = arr[0];
+                flag = true;
+            } else {
+                i++;
+                flag = false;
+            }
+        }
+        file.close();
+        if (!flag) {
+            printf("Tracker number %d not found!\n", number);
+            exit(1);
+        }
+    }
+}
+
 void* server_function(void* arg) {
     // Parse IP:PORT
     char* ipport = (char*)arg;
@@ -98,7 +139,9 @@ void* server_function(void* arg) {
     string ipportstr(ipport);
     splitutility(ipportstr, ':', ipportsplit);
 
-    int portno = stoi(ipportsplit[1]);
+    init_tracker(ipportsplit[0].c_str(), stoi(ipportsplit[1]));
+
+    int portno = trackerinfo.first;
 
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
@@ -109,7 +152,7 @@ void* server_function(void* arg) {
 
     // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
-    if (inet_pton(AF_INET, ipportsplit[0].c_str(), &server_addr.sin_addr) ==
+    if (inet_pton(AF_INET, trackerinfo.second.c_str(), &server_addr.sin_addr) ==
         0) {
         perror("Invalid IP");
         exit(1);
