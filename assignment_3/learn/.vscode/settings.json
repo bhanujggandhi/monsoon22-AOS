@@ -1,9 +1,0 @@
-{
-  "files.associations": {
-    "thread": "cpp",
-    "string": "cpp",
-    "limits": "cpp",
-    "new": "cpp",
-    "cstdlib": "cpp"
-  }
-}

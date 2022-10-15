@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-// #include <openssl/sha.h>
+#include <openssl/sha.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,27 +25,24 @@ struct User {
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
-pair<string, int> connection_info = {"127.0.0.1", 8084};
 User currUser;
 
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
-void connecttotracker(const char* filepath);
 long getfilesize(string filename);
-// string generateSHA(string filepath, long offset);
+string generateSHA(string filepath, long offset);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
-    string str("127.0.0.1:2001");
+    string str = "127.0.0.1:2001";
     currUser.address = str;
     pthread_t server_thread;
     pthread_create(&server_thread, NULL, server_function, (void*)str.c_str());
 
-    // connecttotracker("tracker_info.txt");
     while (1) {
         char request[255];
         memset(request, 0, 255);
@@ -53,10 +50,11 @@ int main(int argc, char* argv[]) {
         fgets(request, 255, stdin);
         vector<string> parsedReq;
         string req(request);
-        int CLIENTPORT = connection_info.second;
+        splitutility(req, ':', parsedReq);
+        int CLIENTPORT = atoi(parsedReq[0].c_str());
         // int CLIENTPORT = 8081;
         if (CLIENTPORT == 0) continue;
-        client_function(req.c_str(), CLIENTPORT);
+        client_function(parsedReq[1].c_str(), CLIENTPORT);
     }
 }
 
@@ -145,56 +143,6 @@ void* server_function(void* arg) {
     shutdown(server_socket, SHUT_RDWR);
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
-}
-
-void connecttotracker(const char* filepath) {
-    char resolvedpath[_POSIX_PATH_MAX];
-    if (realpath(filepath, resolvedpath) == NULL) {
-        printf("ERROR: bad path %s\n", resolvedpath);
-        return;
-    }
-
-    std::ifstream file(resolvedpath);
-    if (file.is_open()) {
-        std::string line;
-        // int i = 1;
-        while (std::getline(file, line)) {
-            vector<string> ipport;
-            splitutility(line, ':', ipport);
-
-            int portno = stoi(ipport[1]);
-            int server_socket;
-            if (server_socket = socket(AF_INET, SOCK_STREAM, 0) < 0) {
-                printf("Error: Opening socket\n");
-                exit(1);
-            }
-
-            struct sockaddr_in server_address;
-            bzero((char*)&server_address, sizeof(server_address));
-
-            server_address.sin_family = AF_INET;
-
-            server_address.sin_addr.s_addr = INADDR_ANY;
-
-            server_address.sin_port = htons(portno);
-
-            if (connect(server_socket, (struct sockaddr*)&server_address,
-                        sizeof(server_address)) < 0) {
-                printf("Could not connect\n");
-                continue;
-            }
-            connection_info.first = ipport[0];
-            connection_info.second = stoi(ipport[1]);
-            printf("Connected successfully\n");
-            file.close();
-            close(server_socket);
-            return;
-        }
-
-        file.close();
-        printf("No tracker online\n");
-        exit(1);
-    }
 }
 
 void client_function(const char* request, int CLIENTPORT) {
@@ -530,8 +478,7 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        // string sha = generateSHA(reqarr[1], 0);
-        string sha = "hello";
+        string sha = generateSHA(reqarr[1], 0);
         long filesize = getfilesize(reqarr[1]);
         string groupid = reqarr[2];
 
@@ -703,34 +650,34 @@ void recieved_file(string path, int server_socket) {
     printf("File Recieved Succesfully!\n");
 }
 
-// string generateSHA(string filepath, long offset) {
-//     char resolvedpath[_POSIX_PATH_MAX];
-//     if (realpath(filepath.c_str(), resolvedpath) == NULL) {
-//         printf("ERR: bad path %s\n", resolvedpath);
-//         return NULL;
-//     }
+string generateSHA(string filepath, long offset) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+        printf("ERR: bad path %s\n", resolvedpath);
+        return NULL;
+    }
 
-//     FILE* fd = fopen(resolvedpath, "rb");
-//     char shabuf[SHA_DIGEST_LENGTH];
-//     bzero(shabuf, sizeof(shabuf));
-//     fseek(fd, offset, SEEK_SET);
-//     fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+    FILE* fd = fopen(resolvedpath, "rb");
+    char shabuf[SHA_DIGEST_LENGTH];
+    bzero(shabuf, sizeof(shabuf));
+    fseek(fd, offset, SEEK_SET);
+    fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
 
-//     unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
-//     char buffer[SHA_DIGEST_LENGTH * 2];
-//     int i;
-//     bzero(buffer, sizeof(buffer));
-//     bzero(SHA_Buffer, sizeof(SHA_Buffer));
-//     SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
+    unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+    char buffer[SHA_DIGEST_LENGTH * 2];
+    int i;
+    bzero(buffer, sizeof(buffer));
+    bzero(SHA_Buffer, sizeof(SHA_Buffer));
+    SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
 
-//     for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
-//         sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
-//     }
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+    }
 
-//     fclose(fd);
-//     string shastr(buffer);
-//     return shastr;
-// }
+    fclose(fd);
+    string shastr(buffer);
+    return shastr;
+}
 
 long getfilesize(string filename) {
     struct stat sbuf;
