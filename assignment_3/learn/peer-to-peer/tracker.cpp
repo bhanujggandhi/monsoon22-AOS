@@ -285,8 +285,8 @@ void download_file(char* path, int client_socket) {
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
-    char request[_POSIX_PATH_MAX];
-    bzero(request, _POSIX_PATH_MAX);
+    char request[BUFSIZ];
+    bzero(request, BUFSIZ);
 
     size_t bytes_read;
     int req_size = 0;
@@ -701,7 +701,7 @@ void* handle_connection(void* arg) {
         }
 
         auto currFile = filetomap[filepath];
-        string res = "1:" + currFile->SHA;
+        string res = "S " + currFile->SHA;
         long countusers = 0;
         for (auto uid : currFile->userids) {
             auto peer = usertomap[uid];
