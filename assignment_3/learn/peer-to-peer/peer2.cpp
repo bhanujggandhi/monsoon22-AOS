@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-// #include <openssl/sha.h>
+#include <openssl/sha.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -567,8 +567,8 @@ void client_function(const char* request, int CLIENTPORT) {
         long off = 0;
         long flsz = filesize;
         while (flsz > 0) {
-            // string currsha = generateSHA(resolvedpath, off);
-            string currsha = "hello";
+            string currsha = generateSHA(resolvedpath, off);
+            // string currsha = "hello";
             currFile->chunksha.push_back({off / CHUNKSIZE, currsha});
             tempchunkpresent[off / CHUNKSIZE] = true;
             concatenatedSHA += currsha;
@@ -860,34 +860,34 @@ vector<string> userschunkmapinfo(string& sha, vector<string>& clientarr,
     return chunkdetails;
 }
 
-// string generateSHA(string filepath, long offset) {
-//     char resolvedpath[_POSIX_PATH_MAX];
-//     if (realpath(filepath.c_str(), resolvedpath) == NULL) {
-//         printf("ERR: bad path %s\n", resolvedpath);
-//         return NULL;
-//     }
+string generateSHA(string filepath, long offset) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+        printf("ERR: bad path %s\n", resolvedpath);
+        return NULL;
+    }
 
-//     FILE* fd = fopen(resolvedpath, "rb");
-//     char shabuf[SHA_DIGEST_LENGTH];
-//     bzero(shabuf, sizeof(shabuf));
-//     fseek(fd, offset, SEEK_SET);
-//     fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+    FILE* fd = fopen(resolvedpath, "rb");
+    char shabuf[SHA_DIGEST_LENGTH];
+    bzero(shabuf, sizeof(shabuf));
+    fseek(fd, offset, SEEK_SET);
+    fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
 
-//     unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
-//     char buffer[SHA_DIGEST_LENGTH * 2];
-//     int i;
-//     bzero(buffer, sizeof(buffer));
-//     bzero(SHA_Buffer, sizeof(SHA_Buffer));
-//     SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
+    unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+    char buffer[SHA_DIGEST_LENGTH * 2];
+    int i;
+    bzero(buffer, sizeof(buffer));
+    bzero(SHA_Buffer, sizeof(SHA_Buffer));
+    SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
 
-//     for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
-//         sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
-//     }
+    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+        sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+    }
 
-//     fclose(fd);
-//     string shastr(buffer);
-//     return shastr;
-// }
+    fclose(fd);
+    string shastr(buffer);
+    return shastr;
+}
 
 long getfilesize(string filename) {
     struct stat sbuf;

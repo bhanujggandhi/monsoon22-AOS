@@ -645,6 +645,33 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
+        auto currGroup = grouptomap[groupid];
+
+        if (currGroup->members.find(userid) == currGroup->members.end()) {
+            string msg =
+                "1:You are not the member of the group! Please send the "
+                "request to join!\n";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
+        if (filetomap.find(filepath) != filetomap.end()) {
+            auto currFile = filetomap[filepath];
+            if (currFile->SHA != sha) {
+                string msg =
+                    "1:Group has already a different file with same file name! "
+                    "Please choose a unique file name!\n";
+                write(client_socket, msg.c_str(), msg.size());
+                return NULL;
+            }
+
+            currFile->userids.insert(userid);
+            currFile->users.insert(usertomap[userid]->address);
+            string msg = "2:" + groupid + ":File uploaded succesfully";
+            write(client_socket, msg.c_str(), msg.size());
+            return NULL;
+        }
+
         FileStr* newfile = new FileStr();
 
         newfile->filepath = filepath;
@@ -655,12 +682,12 @@ void* handle_connection(void* arg) {
 
         filetomap.insert({filepath, newfile});
 
-        auto currGroup = grouptomap[groupid];
         currGroup->files.insert(filepath);
 
         string msg = "2:" + groupid + ":File uploaded succesfully";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;
+
     } else if (reqarr[0] == "download_file") {
         string groupid = reqarr[1];
         string filepath = reqarr[2];
