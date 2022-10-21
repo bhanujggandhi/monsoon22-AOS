@@ -25,6 +25,7 @@ struct User {
 };
 
 struct FileStr {
+    string filename;
     string filepath;
     string SHA;
     long filesize;
@@ -35,6 +36,7 @@ struct FileStr {
 
 struct DownloadData {
     int chunknumber;
+    string filename;
     string srcfilepath;
     string destfilepath;
     vector<string> peers;
@@ -47,6 +49,7 @@ struct DownloadData {
 struct DownloadPassThread {
     string destinationpath;
     unordered_map<long, vector<string>> chunktomap;
+    string filename;
     string srcfilepath;
     string filesha;
     string groupid;
@@ -602,7 +605,6 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("You are not logged! Please login\n");
             return;
         }
-        string sha = "hello";
         long filesize = getfilesize(reqarr[1]);
         string groupid = reqarr[2];
 
@@ -615,7 +617,11 @@ void client_function(const char* request, int CLIENTPORT) {
 
         string resp(resolvedpath);
 
+        vector<string> filenamevec;
+        splitutility(resp, '/', filenamevec);
+
         FileStr* currFile = new FileStr();
+        currFile->filename = filenamevec.back();
         currFile->filepath = resolvedpath;
         currFile->filesize = filesize;
         currFile->chunks = ceil((double)filesize / CHUNKSIZE);
@@ -646,8 +652,8 @@ void client_function(const char* request, int CLIENTPORT) {
         currFile->chunkpresent = tempchunkpresent;
         currFile->SHA = concatenatedSHA;
 
-        string preq = reqarr[0] + " " + resp + " " + reqarr[2] + " " +
-                      concatenatedSHA + " " + to_string(filesize) + " " +
+        string preq = reqarr[0] + " " + filenamevec.back() + " " + reqarr[2] +
+                      " " + concatenatedSHA + " " + to_string(filesize) + " " +
                       currUser.userid + "\n";
 
         printf("%s\n", preq.c_str());
@@ -667,7 +673,7 @@ void client_function(const char* request, int CLIENTPORT) {
 
         if (resarr[0] == "2") {
             printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
-            filetomap.insert({resolvedpath, currFile});
+            filetomap.insert({filenamevec.back(), currFile});
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
@@ -685,13 +691,6 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        char resolvedpath[PATH_MAX];
-        if (realpath(reqarr[2].c_str(), resolvedpath) == NULL) {
-            printf("ERROR: bad path %s\n", resolvedpath);
-            return;
-        }
-
-        string resp(resolvedpath);
         string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
@@ -715,16 +714,26 @@ void client_function(const char* request, int CLIENTPORT) {
 
             unordered_map<long, vector<string>> chunktomap;
 
-            userschunkmapinfo(chunktomap, clients, resp);
+            userschunkmapinfo(chunktomap, clients, reqarr[2]);
+
+            if (chunktomap.size() == 0) {
+                printf(
+                    "No user is currently online to serve this file, try again "
+                    "later\n");
+                return;
+            }
 
             DownloadPassThread* transferdata = new DownloadPassThread();
+            transferdata->filename = reqarr[2];
             transferdata->chunktomap = chunktomap;
             transferdata->destinationpath = reqarr[3];
-            transferdata->srcfilepath = resolvedpath;
+            // transferdata->srcfilepath = curr->filepath;
             transferdata->groupid = reqarr[1];
 
             pthread_t download_thread;
             pthread_create(&download_thread, NULL, downloadstart, transferdata);
+
+            downloadstart(transferdata);
 
         } else if (buffer[0] == '1') {
             vector<string> resarr;
@@ -867,11 +876,12 @@ void* handle_connection(void* arg) {
         write(client_socket, res.c_str(), res.size());
         return NULL;
     } else if (reqarr[0] == "download") {
-        string filepath = reqarr[1];
+        string filename = reqarr[1];
         int chunknumber = stoi(reqarr[2]);
-        long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
 
-        auto currFile = filetomap[filepath];
+        auto currFile = filetomap[filename];
+        long totalfilesize =
+            getfilesize(currFile->filepath) - (chunknumber * CHUNKSIZE);
         string sha;
 
         for (auto x : currFile->chunksha) {
@@ -880,12 +890,14 @@ void* handle_connection(void* arg) {
             }
         }
 
+        sha += " " + currFile->filepath;
+
         int n = write(client_socket, sha.c_str(), sha.size());
 
         char resp[5];
         n = read(client_socket, resp, sizeof(resp));
 
-        int fd = open(filepath.c_str(), O_RDONLY);
+        int fd = open(currFile->filepath.c_str(), O_RDONLY);
         off64_t offset = chunknumber * CHUNKSIZE;
         int filesize = CHUNKSIZE;
         size_t readbytes;
@@ -908,7 +920,7 @@ void* handle_connection(void* arg) {
 }
 
 void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
-                       vector<string>& clientarr, string& filepath) {
+                       vector<string>& clientarr, string& filename) {
     for (int i = 0; i < clientarr.size(); i++) {
         vector<string> ipport;
         string curr = clientarr[i];
@@ -936,7 +948,7 @@ void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
         bzero(buffer, BUFSIZ);
 
         string req = "getchunks ";
-        req += filepath + "\n";
+        req += filename + "\n";
 
         int n = write(peerfd, req.c_str(), req.size());
         if (n < 0) {
@@ -976,8 +988,18 @@ void* downloadexec(void* arg) {
     vector<string> clientvec = chunkinfo.peers;
     string fullfilesha = chunkinfo.filesha;
     int noofclients = clientvec.size();
-    string filepath = chunkinfo.srcfilepath;
+    // string filepath = chunkinfo.srcfilepath;
     int chunknumber = chunkinfo.chunknumber;
+    string filename = chunkinfo.filename;
+    string destpath = chunkinfo.destfilepath;
+
+    if (destpath.back() == '/') {
+        destpath += filename;
+    } else {
+        destpath = destpath + "/" + filename;
+    }
+
+    auto currFile = filetomap[filename];
 
     int n = 5;
     while (n--) {
@@ -1007,7 +1029,7 @@ void* downloadexec(void* arg) {
         bzero(buffer, BUFSIZ);
 
         string req =
-            "download " + filepath + " " + to_string(chunknumber) + "\n";
+            "download " + filename + " " + to_string(chunknumber) + "\n";
 
         int n = write(peerfd, req.c_str(), req.size());
         if (n < 0) {
@@ -1015,14 +1037,18 @@ void* downloadexec(void* arg) {
             continue;
         }
 
-        char sha[40];
-        n = read(peerfd, sha, 40);
+        char sha[1024];
+        n = read(peerfd, sha, 1024);
         n = write(peerfd, "OK", 2);
 
-        int fd = open(
-            "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
-            "learn/peer-to-peer/copied.txt",
-            O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        vector<string> shadecode;
+        string sd(sha);
+        splitutility(sd, ' ', shadecode);
+
+        string filepath = shadecode[1];
+
+        int fd = open(destpath.c_str(), O_WRONLY | O_CREAT,
+                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
         int filesize = CHUNKSIZE;
         loff_t offset = chunknumber * CHUNKSIZE;
@@ -1037,14 +1063,26 @@ void* downloadexec(void* arg) {
             totalfilesize -= readbytes;
         }
 
-        string gensha = generateSHA(
-            "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
-            "learn/peer-to-peer/copied.txt",
-            CHUNKSIZE * chunknumber);
+        if (currFile) {
+            auto vec = currFile->chunkpresent;
+            if (vec.empty()) {
+                long filesz = getfilesize(filepath);
+                long noofchunks = ceil((double)filesz / CHUNKSIZE);
+                vector<bool> temp(noofchunks, false);
+                temp[chunknumber] = true;
+                currFile->chunkpresent = temp;
+            } else {
+                currFile->chunkpresent[chunknumber] = true;
+            }
+        }
 
-        if (gensha != sha) {
+        string gensha = generateSHA(destpath, CHUNKSIZE * chunknumber);
+
+        // string gensha = "hello";
+        if (gensha != shadecode[0]) {
             printf("SHA didn't match\n");
         }
+        if (currFile) currFile->chunksha.push_back({chunknumber, gensha});
 
         close(fd);
         close(peerfd);
@@ -1064,8 +1102,9 @@ void* downloadstart(void* arg) {
     vector<DownloadData*> pieceselection;
     for (auto x : transferdata.chunktomap) {
         DownloadData* dd = new DownloadData();
+        dd->filename = transferdata.filename;
         dd->chunknumber = x.first;
-        dd->srcfilepath = transferdata.srcfilepath;
+        // dd->srcfilepath = transferdata.srcfilepath;
         dd->peers = x.second;
         dd->destfilepath = transferdata.destinationpath;
         dd->groupid = transferdata.groupid;
@@ -1078,8 +1117,11 @@ void* downloadstart(void* arg) {
     DownloadData* chunkToSeed = pieceselection.back();
     downloadexec(chunkToSeed);
     pieceselection.pop_back();
-    string req = "upload_file " + chunkToSeed->srcfilepath + " " +
-                 chunkToSeed->groupid + "\n";
+    if (chunkToSeed->destfilepath.back() == '/') {
+        chunkToSeed->destfilepath.pop_back();
+    }
+    string req = "upload_file " + chunkToSeed->destfilepath + "/" +
+                 transferdata.filename + " " + chunkToSeed->groupid + "\n";
     client_function(req.c_str(), connection_info.second);
 
     pthread_t th[DOWNLOAD_THREAD_POOL];
@@ -1096,6 +1138,7 @@ void* downloadstart(void* arg) {
         threadDownQueue.push(pieceselection[i]);
         pthread_cond_signal(&condDownQueue);
         pthread_mutex_unlock(&mutexDownQueue);
+        downloadexec(pieceselection[i]);
     }
 
     pthread_mutex_destroy(&mutexDownQueue);

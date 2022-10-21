@@ -28,7 +28,7 @@ struct Group {
     unordered_set<string> requests;
 };
 struct FileStr {
-    string filepath;
+    string filename;
     string SHA;
     long filesize;
     unordered_set<string> userids;
@@ -628,7 +628,7 @@ void* handle_connection(void* arg) {
         return NULL;
 
     } else if (reqarr[0] == "upload_file") {
-        string filepath = reqarr[1];
+        string filename = reqarr[1];
         string groupid = reqarr[2];
         string sha = reqarr[3];
         long filesize = stol(reqarr[4]);
@@ -663,8 +663,8 @@ void* handle_connection(void* arg) {
             return NULL;
         }
 
-        if (filetomap.find(filepath) != filetomap.end()) {
-            auto currFile = filetomap[filepath];
+        if (filetomap.find(filename) != filetomap.end()) {
+            auto currFile = filetomap[filename];
             if (currFile->SHA != sha) {
                 string msg =
                     "1:Group has already a different file with same file name! "
@@ -682,15 +682,15 @@ void* handle_connection(void* arg) {
 
         FileStr* newfile = new FileStr();
 
-        newfile->filepath = filepath;
+        newfile->filename = filename;
         newfile->filesize = filesize;
         newfile->SHA = sha;
         newfile->users.insert(usertomap[userid]->address);
         newfile->userids.insert(userid);
 
-        filetomap.insert({filepath, newfile});
+        filetomap.insert({filename, newfile});
 
-        currGroup->files.insert(filepath);
+        currGroup->files.insert(filename);
 
         string msg = "2:" + groupid + ":File uploaded succesfully";
         write(client_socket, msg.c_str(), msg.size());
