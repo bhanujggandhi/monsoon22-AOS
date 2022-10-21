@@ -699,7 +699,7 @@ void client_function(const char* request, int CLIENTPORT) {
 
         size_t size;
         if ((size = read(server_socket, buffer, BUFSIZ)) < 0) {
-            printf("Couldn't get response from the server\n");
+            printf("Couldn't read from the server\n");
             return;
         }
         printf("%s\n", buffer);

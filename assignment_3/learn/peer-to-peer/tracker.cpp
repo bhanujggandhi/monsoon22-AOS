@@ -294,8 +294,8 @@ void* start_thread(void* arg) {
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
-    char request[BUFSIZ];
-    bzero(request, BUFSIZ);
+    char request[2000000];
+    bzero(request, 2000000);
 
     size_t bytes_read;
     int req_size = 0;
@@ -303,8 +303,7 @@ void* handle_connection(void* arg) {
     while ((bytes_read = read(client_socket, request + req_size,
                               sizeof(request) - req_size - 1)) > 0) {
         req_size += bytes_read;
-        if (req_size > _POSIX_PATH_MAX - 1 or request[req_size - 1] == '\n')
-            break;
+        if (req_size > 2000000 - 1 or request[req_size - 1] == '\n') break;
     }
     check(bytes_read, "recv error");
     request[req_size - 1] = 0;
@@ -737,7 +736,7 @@ void* handle_connection(void* arg) {
         }
 
         auto currFile = filetomap[filepath];
-        string res = "S " + currFile->SHA;
+        string res = "S";
         long countusers = 0;
         for (auto uid : currFile->userids) {
             auto peer = usertomap[uid];
@@ -759,6 +758,7 @@ void* handle_connection(void* arg) {
         }
 
         write(client_socket, res.c_str(), res.size());
+
         return NULL;
 
     } else if (reqarr[0] == "logout") {
