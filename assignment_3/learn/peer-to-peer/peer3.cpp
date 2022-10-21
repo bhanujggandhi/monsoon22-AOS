@@ -11,9 +11,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-// #define BUFSIZ 524288
 #define THREAD_POOL_SIZE 4
-#define SERVERPORT 8081
+#define DOWNLOAD_THREAD_POOL 20
+#define SERVERPORT 8083
 #define CHUNKSIZE 524288
 
 using namespace std;
@@ -33,15 +33,31 @@ struct FileStr {
     vector<pair<int, string>> chunksha;
 };
 
+struct DownloadData {
+    int chunknumber;
+    string srcfilepath;
+    string destfilepath;
+    vector<string> peers;
+    string filesha;
+
+    DownloadData() {}
+};
+
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
+
+pthread_mutex_t mutexDownQueue;
+pthread_cond_t condDownQueue;
+queue<DownloadData*> threadDownQueue;
+
 pair<string, int> connection_info = {"127.0.0.1", 8084};
 User currUser;
 unordered_map<string, FileStr*> filetomap;
 
 void err(const char* msg);
 void check(int status, string msg);
+bool cmp(DownloadData* p1, DownloadData* p2);
 void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
 void connecttotracker(const char* filepath);
@@ -49,8 +65,10 @@ long getfilesize(string filename);
 // string generateSHA(string filepath, long offset);
 void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
                        vector<string>& clientarr, string& filepath);
+void* downloadexec(void* arg);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
+void* start_down_thread(void* arg);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
@@ -61,10 +79,10 @@ int main(int argc, char* argv[]) {
 
     // connecttotracker("tracker_info.txt");
     while (1) {
-        char request[255];
-        memset(request, 0, 255);
+        char request[BUFSIZ];
+        memset(request, 0, BUFSIZ);
         fflush(stdin);
-        fgets(request, 255, stdin);
+        fgets(request, BUFSIZ, stdin);
         vector<string> parsedReq;
         string req(request);
         int CLIENTPORT = connection_info.second;
@@ -80,6 +98,10 @@ void check(int status, string msg) {
     if (status < 0) {
         err(msg.c_str());
     }
+}
+
+bool cmp(DownloadData* p1, DownloadData* p2) {
+    return p1->peers.size() < p2->peers.size();
 }
 
 void splitutility(string str, char del, vector<string>& arr) {
@@ -153,6 +175,8 @@ void* server_function(void* arg) {
         thread_queue.push(pclient);
         pthread_cond_signal(&condQueue);
         pthread_mutex_unlock(&mutexQueue);
+
+        // handle_connection(pclient);
     }
 
     // close(server_socket);
@@ -559,7 +583,7 @@ void client_function(const char* request, int CLIENTPORT) {
         FileStr* currFile = new FileStr();
         currFile->filepath = resolvedpath;
         currFile->filesize = filesize;
-        currFile->chunks = ceil(filesize / CHUNKSIZE);
+        currFile->chunks = ceil((double)filesize / CHUNKSIZE);
         vector<bool> tempchunkpresent(ceil((double)filesize / CHUNKSIZE));
 
         string concatenatedSHA = "";
@@ -659,6 +683,42 @@ void client_function(const char* request, int CLIENTPORT) {
 
             userschunkmapinfo(chunktomap, clients, resp);
 
+            string destpath = reqarr[3].c_str();
+
+            vector<DownloadData*> pieceselection;
+            for (auto x : chunktomap) {
+                DownloadData* dd = new DownloadData();
+                dd->chunknumber = x.first;
+                dd->srcfilepath = resolvedpath;
+                dd->filesha = fullfilesha;
+                dd->peers = x.second;
+                dd->destfilepath = destpath;
+
+                pieceselection.push_back(dd);
+            }
+
+            sort(pieceselection.begin(), pieceselection.end(), cmp);
+
+            pthread_t th[DOWNLOAD_THREAD_POOL];
+            pthread_mutex_init(&mutexDownQueue, NULL);
+            pthread_cond_init(&condDownQueue, NULL);
+            int breakcond = pieceselection.size();
+            for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+                check(
+                    pthread_create(&th[i], NULL, start_down_thread, &breakcond),
+                    "Failed to create the thread");
+            }
+
+            for (int i = 0; i < pieceselection.size(); i++) {
+                pthread_mutex_lock(&mutexDownQueue);
+                threadDownQueue.push(pieceselection[i]);
+                pthread_cond_signal(&condQueue);
+                pthread_mutex_unlock(&mutexDownQueue);
+            }
+
+            pthread_mutex_destroy(&mutexDownQueue);
+            pthread_cond_destroy(&condDownQueue);
+
         } else if (buffer[0] == '1') {
             vector<string> resarr;
             string res(buffer);
@@ -731,6 +791,35 @@ void* start_thread(void* arg) {
     return NULL;
 }
 
+void* start_down_thread(void* arg) {
+    int breakcond = *(int*)arg;
+    while (true) {
+        DownloadData* pclient;
+        pthread_mutex_lock(&mutexDownQueue);
+        if (threadDownQueue.empty()) {
+            pclient = NULL;
+            pthread_cond_wait(&condDownQueue, &mutexDownQueue);
+            if (!threadDownQueue.empty()) {
+                pclient = threadDownQueue.front();
+                threadDownQueue.pop();
+            }
+        } else {
+            pclient = threadDownQueue.front();
+            threadDownQueue.pop();
+            breakcond--;
+        }
+        pthread_mutex_unlock(&mutexDownQueue);
+
+        if (pclient != NULL) {
+            downloadexec(pclient);
+        }
+        if (breakcond <= 0) {
+            break;
+        }
+    }
+    return NULL;
+}
+
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
@@ -793,35 +882,11 @@ void* handle_connection(void* arg) {
         }
         close(fd);
         return NULL;
+    } else {
+        string res = "1:Invalid command\n";
+        write(client_socket, res.c_str(), res.size());
+        return NULL;
     }
-
-    return NULL;
-}
-
-void recieved_file(string path, int server_socket) {
-    /* Take source destination from the args and realpath */
-    char buff[BUFSIZ];
-    bzero(buff, BUFSIZ);
-
-    int d = open(path.c_str(), O_WRONLY | O_CREAT,
-                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-    if (d == -1) {
-        err("Destination file cannot be opened");
-        close(d);
-        return;
-    }
-
-    size_t size;
-    while ((size = read(server_socket, buff, BUFSIZ)) > 0) {
-        // sleep(1);
-        printf("Got %ld bytes\n", size);
-        write(d, buff, size);
-    }
-
-    close(d);
-
-    printf("File Recieved Succesfully!\n");
 }
 
 void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
@@ -849,8 +914,8 @@ void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
             return;
         }
 
-        char buffer[256];
-        bzero(buffer, 256);
+        char buffer[BUFSIZ];
+        bzero(buffer, BUFSIZ);
 
         string req = "getchunks ";
         req += filepath + "\n";
@@ -862,7 +927,7 @@ void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
             return;
         }
 
-        if (read(peerfd, buffer, 256) < 0) {
+        if (read(peerfd, buffer, BUFSIZ) < 0) {
             printf("Couldn't get response from the tracker\n");
             return;
         }
@@ -877,10 +942,92 @@ void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
             splitutility(resarr[1], ' ', chunkdetails);
 
             for (auto x : chunkdetails) {
-                chunktomap[stol(x)].push_back(curr);
+                if (x != "") {
+                    if (chunktomap.find(stol(x)) == chunktomap.end()) {
+                        chunktomap.insert({stol(x), {}});
+                    }
+                    chunktomap[stol(x)].push_back(curr);
+                }
             }
         }
     }
+}
+
+void* downloadexec(void* arg) {
+    DownloadData chunkinfo = *(DownloadData*)arg;
+
+    vector<string> clientvec = chunkinfo.peers;
+    string fullfilesha = chunkinfo.filesha;
+    int noofclients = clientvec.size();
+    string filepath = chunkinfo.srcfilepath;
+    int chunknumber = chunkinfo.chunknumber;
+
+    string curr = clientvec[rand() % noofclients];
+    vector<string> ipport;
+    splitutility(curr, ':', ipport);
+    int port = stoi(ipport[1]);
+
+    int peerfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (peerfd < 0) {
+        printf("Error: In opening socket\n");
+        return NULL;
+    }
+
+    struct sockaddr_in peer_address;
+    peer_address.sin_family = AF_INET;
+    peer_address.sin_addr.s_addr = INADDR_ANY;
+    peer_address.sin_port = htons(port);
+
+    if (connect(peerfd, (struct sockaddr*)&peer_address, sizeof(peer_address)) <
+        0) {
+        printf("Error: In creating connection\n");
+        return NULL;
+    }
+
+    char buffer[BUFSIZ];
+    bzero(buffer, BUFSIZ);
+
+    string req = "download " + filepath + " " + to_string(chunknumber) + "\n";
+
+    cout << req << endl;
+
+    int n = write(peerfd, req.c_str(), req.size());
+    if (n < 0) {
+        printf("Couldn't send the request\n");
+        return NULL;
+    }
+
+    // if (read(peerfd, buffer, BUFSIZ) < 0) {
+    //     printf("Couldn't get response from the tracker\n");
+    //     return NULL;
+    // }
+
+    int fd = open(
+        "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
+        "learn/peer-to-peer/copied.txt",
+        O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
+    int filesize = CHUNKSIZE;
+    loff_t offset = chunknumber * CHUNKSIZE;
+    ssize_t readbytes = 0;
+
+    while (totalfilesize > 0 && filesize > 0 &&
+           (readbytes = read(peerfd, buffer, BUFSIZ)) > 0) {
+        ssize_t written = pwrite64(fd, buffer, readbytes, offset);
+        offset += written;
+        // memset(buffer, 0, BUFSIZ);
+        filesize -= readbytes;
+        totalfilesize -= readbytes;
+    }
+
+    close(fd);
+    close(peerfd);
+
+    printf("Chunk %d downloaded successfully from %d", chunknumber, port);
+
+    return NULL;
+
+    // printf("%s\n", buffer);
 }
 
 // string generateSHA(string filepath, long offset) {
