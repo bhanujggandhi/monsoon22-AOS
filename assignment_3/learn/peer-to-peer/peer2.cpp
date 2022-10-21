@@ -204,7 +204,6 @@ void* server_function(void* arg) {
         pthread_mutex_unlock(&mutexQueue);
     }
 
-    // close(server_socket);
     shutdown(server_socket, SHUT_RDWR);
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
@@ -759,9 +758,6 @@ void client_function(const char* request, int CLIENTPORT) {
         printf("Invalid command\nTry again!\n");
         return;
     }
-
-    // printf("%s\n", currUser.userid.c_str());
-
     close(server_socket);
 }
 
@@ -960,64 +956,69 @@ void* downloadexec(void* arg) {
     string filepath = chunkinfo.srcfilepath;
     int chunknumber = chunkinfo.chunknumber;
 
-    string curr = clientvec[rand() % noofclients];
-    vector<string> ipport;
-    splitutility(curr, ':', ipport);
-    int port = stoi(ipport[1]);
+    int n = 5;
+    while (n--) {
+        string curr = clientvec[rand() % noofclients];
+        vector<string> ipport;
+        splitutility(curr, ':', ipport);
+        int port = stoi(ipport[1]);
 
-    int peerfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (peerfd < 0) {
-        printf("Error: In opening socket\n");
+        int peerfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (peerfd < 0) {
+            printf("Error: In opening socket\n");
+            continue;
+        }
+
+        struct sockaddr_in peer_address;
+        peer_address.sin_family = AF_INET;
+        peer_address.sin_addr.s_addr = INADDR_ANY;
+        peer_address.sin_port = htons(port);
+
+        if (connect(peerfd, (struct sockaddr*)&peer_address,
+                    sizeof(peer_address)) < 0) {
+            printf("Error: In creating connection\n");
+            continue;
+        }
+
+        char buffer[BUFSIZ];
+        bzero(buffer, BUFSIZ);
+
+        string req =
+            "download " + filepath + " " + to_string(chunknumber) + "\n";
+
+        int n = write(peerfd, req.c_str(), req.size());
+        if (n < 0) {
+            printf("Couldn't send the request\n");
+            continue;
+        }
+
+        int fd = open(
+            "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
+            "learn/peer-to-peer/copied.txt",
+            O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
+        int filesize = CHUNKSIZE;
+        loff_t offset = chunknumber * CHUNKSIZE;
+        ssize_t readbytes = 0;
+
+        while (totalfilesize > 0 && filesize > 0 &&
+               (readbytes = read(peerfd, buffer, BUFSIZ)) > 0) {
+            ssize_t written = pwrite64(fd, buffer, readbytes, offset);
+            offset += written;
+            // memset(buffer, 0, BUFSIZ);
+            filesize -= readbytes;
+            totalfilesize -= readbytes;
+        }
+
+        close(fd);
+        close(peerfd);
+
+        printf("Chunk %d downloaded successfully from %d\n", chunknumber, port);
+
         return NULL;
     }
 
-    struct sockaddr_in peer_address;
-    peer_address.sin_family = AF_INET;
-    peer_address.sin_addr.s_addr = INADDR_ANY;
-    peer_address.sin_port = htons(port);
-
-    if (connect(peerfd, (struct sockaddr*)&peer_address, sizeof(peer_address)) <
-        0) {
-        printf("Error: In creating connection\n");
-        return NULL;
-    }
-
-    char buffer[BUFSIZ];
-    bzero(buffer, BUFSIZ);
-
-    string req = "download " + filepath + " " + to_string(chunknumber) + "\n";
-
-    cout << req << endl;
-
-    int n = write(peerfd, req.c_str(), req.size());
-    if (n < 0) {
-        printf("Couldn't send the request\n");
-        return NULL;
-    }
-
-    int fd = open(
-        "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
-        "learn/peer-to-peer/copied.txt",
-        O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
-    int filesize = CHUNKSIZE;
-    loff_t offset = chunknumber * CHUNKSIZE;
-    ssize_t readbytes = 0;
-
-    while (totalfilesize > 0 && filesize > 0 &&
-           (readbytes = read(peerfd, buffer, BUFSIZ)) > 0) {
-        ssize_t written = pwrite64(fd, buffer, readbytes, offset);
-        offset += written;
-        // memset(buffer, 0, BUFSIZ);
-        filesize -= readbytes;
-        totalfilesize -= readbytes;
-    }
-
-    close(fd);
-    close(peerfd);
-
-    printf("Chunk %d downloaded successfully from %d\n", chunknumber, port);
-
+    printf("Couldn't Download Chunk %d\n", chunknumber);
     return NULL;
 }
 
