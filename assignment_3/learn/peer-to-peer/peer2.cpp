@@ -716,7 +716,6 @@ void client_function(const char* request, int CLIENTPORT) {
 
             pthread_t download_thread;
             pthread_create(&download_thread, NULL, downloadstart, transferdata);
-            // downloadstart(transferdata);
 
         } else if (buffer[0] == '1') {
             vector<string> resarr;
