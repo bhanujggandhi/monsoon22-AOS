@@ -3,35 +3,63 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+// #include <openssl/sha.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
+// #define BUFSIZ 524288
 #define THREAD_POOL_SIZE 4
-#define SERVERPORT 8083
+#define SERVERPORT 8081
+#define CHUNKSIZE 524288
 
 using namespace std;
+
+struct User {
+    string userid;
+    bool loggedin;
+    string address;
+};
+
+struct FileStr {
+    string filepath;
+    string SHA;
+    long filesize;
+    long chunks = ceil(filesize / (long)BUFSIZ);
+    vector<bool> chunkpresent;
+    vector<pair<int, string>> chunksha;
+};
 
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
-string userid = "";
-bool loggedin = false;
+pair<string, int> connection_info = {"127.0.0.1", 8084};
+User currUser;
+unordered_map<string, FileStr*> filetomap;
 
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
+void connecttotracker(const char* filepath);
+long getfilesize(string filename);
+// string generateSHA(string filepath, long offset);
+void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
+                       vector<string>& clientarr, string& filepath);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
+    string str("127.0.0.1:2003");
+    currUser.address = str;
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, NULL);
+    pthread_create(&server_thread, NULL, server_function, (void*)str.c_str());
 
+    // connecttotracker("tracker_info.txt");
     while (1) {
         char request[255];
         memset(request, 0, 255);
@@ -39,11 +67,10 @@ int main(int argc, char* argv[]) {
         fgets(request, 255, stdin);
         vector<string> parsedReq;
         string req(request);
-        splitutility(req, ':', parsedReq);
-        int CLIENTPORT = atoi(parsedReq[0].c_str());
+        int CLIENTPORT = connection_info.second;
         // int CLIENTPORT = 8081;
         if (CLIENTPORT == 0) continue;
-        client_function(parsedReq[1].c_str(), CLIENTPORT);
+        client_function(req.c_str(), CLIENTPORT);
     }
 }
 
@@ -71,6 +98,14 @@ void splitutility(string str, char del, vector<string>& arr) {
 }
 
 void* server_function(void* arg) {
+    // Parse IP:PORT
+    char* ipport = (char*)arg;
+    vector<string> ipportsplit;
+    string ipportstr(ipport);
+    splitutility(ipportstr, ':', ipportsplit);
+
+    int portno = stoi(ipportsplit[1]);
+
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Socket Cannot be Opened!");
@@ -78,7 +113,7 @@ void* server_function(void* arg) {
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
 
-    int portno = SERVERPORT;
+    // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(portno);
@@ -126,6 +161,56 @@ void* server_function(void* arg) {
     pthread_cond_destroy(&condQueue);
 }
 
+void connecttotracker(const char* filepath) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filepath, resolvedpath) == NULL) {
+        printf("ERROR: bad path %s\n", resolvedpath);
+        return;
+    }
+
+    std::ifstream file(resolvedpath);
+    if (file.is_open()) {
+        std::string line;
+        // int i = 1;
+        while (std::getline(file, line)) {
+            vector<string> ipport;
+            splitutility(line, ':', ipport);
+
+            int portno = stoi(ipport[1]);
+            int server_socket;
+            if (server_socket = socket(AF_INET, SOCK_STREAM, 0) < 0) {
+                printf("Error: Opening socket\n");
+                exit(1);
+            }
+
+            struct sockaddr_in server_address;
+            bzero((char*)&server_address, sizeof(server_address));
+
+            server_address.sin_family = AF_INET;
+
+            server_address.sin_addr.s_addr = INADDR_ANY;
+
+            server_address.sin_port = htons(portno);
+
+            if (connect(server_socket, (struct sockaddr*)&server_address,
+                        sizeof(server_address)) < 0) {
+                printf("Could not connect\n");
+                continue;
+            }
+            connection_info.first = ipport[0];
+            connection_info.second = stoi(ipport[1]);
+            printf("Connected successfully\n");
+            file.close();
+            close(server_socket);
+            return;
+        }
+
+        file.close();
+        printf("No tracker online\n");
+        exit(1);
+    }
+}
+
 void client_function(const char* request, int CLIENTPORT) {
     int portno = CLIENTPORT;
     int server_socket;
@@ -164,7 +249,16 @@ void client_function(const char* request, int CLIENTPORT) {
     char buffer[BUFSIZ];
     memset(buffer, 0, BUFSIZ);
     if (reqarr[0] == "create_user") {
-        int n = write(server_socket, request, strlen(request));
+        if (reqarr.size() != 3) {
+            string msg =
+                "1:Invalid Number of arguments for Login\nUSAGE - create_user "
+                "<user_id> <password>\n";
+            printf("%s", msg.c_str());
+            return;
+        }
+
+        req += " " + currUser.address + "\n";
+        int n = write(server_socket, req.c_str(), req.size());
         if (n < 0) err("ERROR: writing to socket");
 
         size_t size;
@@ -177,19 +271,27 @@ void client_function(const char* request, int CLIENTPORT) {
         string res(buffer);
         splitutility(res, ':', resarr);
         if (resarr[0] == "2") {
-            userid = resarr[1];
-            loggedin = true;
+            currUser.userid = resarr[1];
+            currUser.loggedin = true;
             printf("%s\n", resarr[2].c_str());
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
     } else if (reqarr[0] == "login") {
-        if (loggedin) {
-            printf("You are already logged in as %s\nPlease logout first!\n",
-                   userid.c_str());
+        if (reqarr.size() != 3) {
+            string msg =
+                "1:Invalid Number of arguments for Login\nUSAGE - login "
+                "<user_id> <password>\n";
+            printf("%s", msg.c_str());
             return;
         }
-        int n = write(server_socket, request, strlen(request));
+        if (currUser.loggedin) {
+            printf("You are already logged in as %s\nPlease logout first!\n",
+                   currUser.userid.c_str());
+            return;
+        }
+        req += " " + currUser.address + "\n";
+        int n = write(server_socket, req.c_str(), req.size());
         if (n < 0) err("ERROR: writing to socket");
 
         size_t size;
@@ -203,8 +305,8 @@ void client_function(const char* request, int CLIENTPORT) {
         splitutility(res, ':', resarr);
 
         if (resarr[0] == "2") {
-            userid = resarr[1];
-            loggedin = true;
+            currUser.userid = resarr[1];
+            currUser.loggedin = true;
             printf("%s\n", resarr[2].c_str());
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
@@ -212,15 +314,15 @@ void client_function(const char* request, int CLIENTPORT) {
     } else if (reqarr[0] == "create_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: create_group <group_id>");
+            printf("USAGE: create_group <group_id>\n");
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -240,20 +342,19 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-
     } else if (reqarr[0] == "join_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: join_group <group_id>");
+            printf("USAGE: join_group <group_id>\n");
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -273,20 +374,19 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-
     } else if (reqarr[0] == "leave_group") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: join_group <group_id>");
+            printf("USAGE: join_group <group_id>\n");
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -306,20 +406,19 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
-
     } else if (reqarr[0] == "list_requests") {
         if (reqarr.size() < 2) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: list_requests <group_id>");
+            printf("USAGE: list_requests <group_id>\n");
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -340,18 +439,18 @@ void client_function(const char* request, int CLIENTPORT) {
             printf("%s\n", resarr[1].c_str());
         }
     } else if (reqarr[0] == "accept_request") {
-        if (reqarr.size() < 3) {
+        if (reqarr.size() != 3) {
             printf("Invalid number of arguments\n");
-            printf("USAGE: accept_request <group_id> <user_id>");
+            printf("USAGE: accept_request <group_id> <user_id>\n");
             return;
         }
 
-        if (!loggedin) {
+        if (!currUser.loggedin) {
             printf("You are not logged! Please login\n");
             return;
         }
 
-        string preq = req + " " + userid + "\n";
+        string preq = req + " " + currUser.userid + "\n";
 
         int n = write(server_socket, preq.c_str(), preq.size());
         if (n < 0) err("ERROR: writing to socket");
@@ -371,12 +470,208 @@ void client_function(const char* request, int CLIENTPORT) {
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
+    } else if (req == "list_groups") {
+        if (reqarr.size() != 1) {
+            printf("Invalid number of arguments\n");
+            printf("USAGE: list_groups\n");
+            return;
+        }
+        if (!currUser.loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+
+        string preq = req + " " + currUser.userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (reqarr[0] == "list_files") {
+        if (reqarr.size() != 2) {
+            printf("Invalid number of arguments\n");
+            printf("USAGE: list_files <group_id>\n");
+            return;
+        }
+        if (!currUser.loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+
+        string preq = req + " " + currUser.userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (reqarr[0] == "upload_file") {
+        if (reqarr.size() != 3) {
+            printf("Invalid number of arguments\n");
+            printf("USAGE: upload_file <file_path> <group_id>\n");
+            return;
+        }
+
+        if (!currUser.loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+        string sha = "hello";
+        long filesize = getfilesize(reqarr[1]);
+        string groupid = reqarr[2];
+
+        char resolvedpath[_POSIX_PATH_MAX];
+
+        if (realpath(reqarr[1].c_str(), resolvedpath) == NULL) {
+            printf("ERROR: bad path %s\n", resolvedpath);
+            return;
+        }
+
+        string resp(resolvedpath);
+
+        FileStr* currFile = new FileStr();
+        currFile->filepath = resolvedpath;
+        currFile->filesize = filesize;
+        currFile->chunks = ceil(filesize / CHUNKSIZE);
+        vector<bool> tempchunkpresent(ceil((double)filesize / CHUNKSIZE));
+
+        string concatenatedSHA = "";
+        long off = 0;
+        long flsz = filesize;
+        while (flsz > 0) {
+            // string currsha = generateSHA(resolvedpath, off);
+            string currsha = "hello" + to_string(flsz);
+            currFile->chunksha.push_back(
+                {ceil((double)off / CHUNKSIZE), currsha});
+            tempchunkpresent[ceil((double)off / CHUNKSIZE)] = true;
+            concatenatedSHA += currsha;
+            flsz -= CHUNKSIZE;
+            off += CHUNKSIZE;
+        }
+
+        concatenatedSHA =
+            "68b41f1e817a0f2c20693c5aba6d8aab48919e652a300385b1e023f2d25ab97842"
+            "1799552b6fd8e71b1dd956a417ce614d934a4c023da7a1ebff335634cc197ac68e"
+            "dc7292bb843b77f29264879d147114f5d0dec6422e21f811604ce4b93d984f5187"
+            "76735eda98ca450ed9a8bddefc92aa273d06ada97e44ab1e080c08857d3f8d4fa5"
+            "a01d5076dbc32a86f5a8e4d2fdcc382cf13c190e7f8a2a2e90ef0abf9730f8a36e"
+            "cd68bc35947f67cf649771002712b3bfb195210869dbe9b807a395341c46ca07fd"
+            "99a9";
+        currFile->chunkpresent = tempchunkpresent;
+        currFile->SHA = concatenatedSHA;
+
+        string preq = reqarr[0] + " " + resp + " " + reqarr[2] + " " +
+                      concatenatedSHA + " " + to_string(filesize) + " " +
+                      currUser.userid + "\n";
+
+        printf("%s\n", preq.c_str());
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "2") {
+            printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+            filetomap.insert({resolvedpath, currFile});
+        } else if (resarr[0] == "1") {
+            printf("%s\n", resarr[1].c_str());
+        }
+    } else if (reqarr[0] == "download_file") {
+        if (reqarr.size() != 4) {
+            printf("Invalid usage of command\n");
+            printf(
+                "USAGE: download_file <group_id> <file_name> "
+                "<destination_path>\n");
+            return;
+        }
+
+        if (!currUser.loggedin) {
+            printf("You are not logged! Please login\n");
+            return;
+        }
+
+        char resolvedpath[_POSIX_PATH_MAX];
+        if (realpath(reqarr[2].c_str(), resolvedpath) == NULL) {
+            printf("ERROR: bad path %s\n", resolvedpath);
+            return;
+        }
+
+        string resp(resolvedpath);
+        string preq = req + " " + currUser.userid + "\n";
+
+        int n = write(server_socket, preq.c_str(), preq.size());
+        if (n < 0) err("ERROR: writing to socket");
+
+        size_t size;
+        if (read(server_socket, buffer, BUFSIZ) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+        printf("%s\n", buffer);
+
+        if (buffer[0] == 'S') {
+            vector<string> clientarr;
+            string res(buffer);
+            splitutility(res.substr(2), ' ', clientarr);
+            string fullfilesha = clientarr[0];
+            vector<string> clients;
+            for (int i = 1; i < clientarr.size(); i++) {
+                clients.push_back(clientarr[i]);
+            }
+
+            unordered_map<long, vector<string>> chunktomap;
+
+            userschunkmapinfo(chunktomap, clients, resp);
+
+        } else if (buffer[0] == '1') {
+            vector<string> resarr;
+            string res(buffer);
+            splitutility(res, ':', resarr);
+            printf("%s\n", resarr[1].c_str());
+        }
+
     } else if (req == "logout") {
-        if (loggedin == false) {
+        if (currUser.loggedin == false) {
             printf("You are not logged in!\n");
 
         } else {
-            req = req + " " + userid + "\n";
+            req = req + " " + currUser.userid + "\n";
             printf("Sending req %s", req.c_str());
             char charreq[req.length() + 1];
             strcpy(charreq, req.c_str());
@@ -395,8 +690,8 @@ void client_function(const char* request, int CLIENTPORT) {
             splitutility(res, ':', resarr);
 
             if (resarr[0] == "2") {
-                userid = resarr[1];
-                loggedin = false;
+                currUser.userid = resarr[1];
+                currUser.loggedin = false;
                 printf("%s\n", resarr[2].c_str());
             } else if (resarr[0] == "1") {
                 printf("%s\n", resarr[1].c_str());
@@ -407,7 +702,7 @@ void client_function(const char* request, int CLIENTPORT) {
         return;
     }
 
-    printf("%s\n", userid.c_str());
+    // printf("%s\n", currUser.userid.c_str());
 
     close(server_socket);
 }
@@ -453,31 +748,53 @@ void* handle_connection(void* arg) {
     check(bytes_read, "recv error");
     request[msgsize - 1] = 0;
 
-    char resolvedpath[_POSIX_PATH_MAX];
-
-    fflush(stdout);
-    if (realpath(request, resolvedpath) == NULL) {
-        printf("ERROR: bad path %s\n", resolvedpath);
-        close(client_socket);
+    vector<string> reqarr;
+    string req(request);
+    splitutility(req, ' ', reqarr);
+    if (reqarr.empty()) {
+        string msg = "Something went wrong\n";
+        write(client_socket, msg.c_str(), msg.size());
         return NULL;
     }
 
-    char buffer[BUFSIZ];
+    if (reqarr[0] == "getchunks") {
 
-    FILE* fp = fopen(resolvedpath, "r");
-    if (fp == NULL) {
-        printf("ERROR(open) %s\n", buffer);
-        close(client_socket);
+        if (filetomap.find(reqarr[1]) == filetomap.end()) {
+            string res = "-1";
+            write(client_socket, res.c_str(), res.size());
+            return NULL;
+        }
+
+        auto currFile = filetomap[reqarr[1]];
+        string res = "1:";
+
+        for (long i = 0; i < currFile->chunkpresent.size(); i++) {
+            res += to_string(i) + " ";
+        }
+        write(client_socket, res.c_str(), res.size());
+        return NULL;
+    } else if (reqarr[0] == "download") {
+        string filepath = reqarr[1];
+        int chunknumber = stoi(reqarr[2]);
+        long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
+
+        int fd = open(filepath.c_str(), O_RDONLY);
+        off64_t offset = chunknumber * CHUNKSIZE;
+        int filesize = CHUNKSIZE;
+        size_t readbytes;
+        char buff[BUFSIZ];
+        while ((readbytes = pread64(fd, buff, BUFSIZ, offset)) > 0 &&
+               filesize > 0 && totalfilesize > 0) {
+            write(client_socket, buff, readbytes);
+            offset += readbytes;
+            bzero(buff, BUFSIZ);
+            filesize -= readbytes;
+            totalfilesize -= readbytes;
+        }
+        close(fd);
         return NULL;
     }
 
-    while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
-        printf("Sending %ld bytes\n", bytes_read);
-        write(client_socket, buffer, bytes_read);
-    }
-
-    close(client_socket);
-    fclose(fp);
     return NULL;
 }
 
@@ -505,4 +822,98 @@ void recieved_file(string path, int server_socket) {
     close(d);
 
     printf("File Recieved Succesfully!\n");
+}
+
+void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
+                       vector<string>& clientarr, string& filepath) {
+    for (int i = 0; i < clientarr.size(); i++) {
+        vector<string> ipport;
+        string curr = clientarr[i];
+        splitutility(curr, ':', ipport);
+        int port = stoi(ipport[1]);
+
+        int peerfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (peerfd < 0) {
+            printf("Error: In opening socket\n");
+            return;
+        }
+
+        struct sockaddr_in peer_address;
+        peer_address.sin_family = AF_INET;
+        peer_address.sin_addr.s_addr = INADDR_ANY;
+        peer_address.sin_port = htons(port);
+
+        if (connect(peerfd, (struct sockaddr*)&peer_address,
+                    sizeof(peer_address)) < 0) {
+            printf("Error: In creating connection\n");
+            return;
+        }
+
+        char buffer[256];
+        bzero(buffer, 256);
+
+        string req = "getchunks ";
+        req += filepath + "\n";
+        cout << req << endl;
+
+        int n = write(peerfd, req.c_str(), req.size());
+        if (n < 0) {
+            printf("Couldn't send the request\n");
+            return;
+        }
+
+        if (read(peerfd, buffer, 256) < 0) {
+            printf("Couldn't get response from the tracker\n");
+            return;
+        }
+
+        vector<string> resarr;
+        printf("%s\n", buffer);
+        string res(buffer);
+        splitutility(res, ':', resarr);
+
+        if (resarr[0] == "1") {
+            vector<string> chunkdetails;
+            splitutility(resarr[1], ' ', chunkdetails);
+
+            for (auto x : chunkdetails) {
+                chunktomap[stol(x)].push_back(curr);
+            }
+        }
+    }
+}
+
+// string generateSHA(string filepath, long offset) {
+//     char resolvedpath[_POSIX_PATH_MAX];
+//     if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+//         printf("ERR: bad path %s\n", resolvedpath);
+//         return NULL;
+//     }
+
+//     FILE* fd = fopen(resolvedpath, "rb");
+//     char shabuf[SHA_DIGEST_LENGTH];
+//     bzero(shabuf, sizeof(shabuf));
+//     fseek(fd, offset, SEEK_SET);
+//     fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+
+//     unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+//     char buffer[SHA_DIGEST_LENGTH * 2];
+//     int i;
+//     bzero(buffer, sizeof(buffer));
+//     bzero(SHA_Buffer, sizeof(SHA_Buffer));
+//     SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
+
+//     for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+//         sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+//     }
+
+//     fclose(fd);
+//     string shastr(buffer);
+//     return shastr;
+// }
+
+long getfilesize(string filename) {
+    struct stat sbuf;
+    int f = stat(filename.c_str(), &sbuf);
+    return f == 0 ? sbuf.st_size : -1;
 }

@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <openssl/sha.h>
+// #include <openssl/sha.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,13 +11,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define BUFSIZ 524288
 #define THREAD_POOL_SIZE 4
+#define DOWNLOAD_THREAD_POOL 20
 #define SERVERPORT 8081
+#define CHUNKSIZE 524288
 
 using namespace std;
-
-long CHUNKSIZE = 524288;
 
 struct User {
     string userid;
@@ -34,24 +33,42 @@ struct FileStr {
     vector<pair<int, string>> chunksha;
 };
 
+struct DownloadData {
+    int chunknumber;
+    string srcfilepath;
+    string destfilepath;
+    vector<string> peers;
+    string filesha;
+
+    DownloadData() {}
+};
+
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
+
+pthread_mutex_t mutexDownQueue;
+pthread_cond_t condDownQueue;
+queue<DownloadData*> threadDownQueue;
+
 pair<string, int> connection_info = {"127.0.0.1", 8084};
 User currUser;
 unordered_map<string, FileStr*> filetomap;
 
 void err(const char* msg);
 void check(int status, string msg);
+bool cmp(DownloadData* p1, DownloadData* p2);
 void splitutility(string str, char del, vector<string>& pth);
 void* server_function(void* arg);
 void connecttotracker(const char* filepath);
 long getfilesize(string filename);
-string generateSHA(string filepath, long offset);
-vector<string> userschunkmapinfo(string& sha, vector<string>& clientarr,
-                                 string& filepath);
+// string generateSHA(string filepath, long offset);
+void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
+                       vector<string>& clientarr, string& filepath);
+void* downloadexec(void* arg);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
+void* start_down_thread(void* arg);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
@@ -81,6 +98,10 @@ void check(int status, string msg) {
     if (status < 0) {
         err(msg.c_str());
     }
+}
+
+bool cmp(DownloadData* p1, DownloadData* p2) {
+    return p1->peers.size() < p2->peers.size();
 }
 
 void splitutility(string str, char del, vector<string>& arr) {
@@ -154,6 +175,8 @@ void* server_function(void* arg) {
         thread_queue.push(pclient);
         pthread_cond_signal(&condQueue);
         pthread_mutex_unlock(&mutexQueue);
+
+        // handle_connection(pclient);
     }
 
     // close(server_socket);
@@ -560,22 +583,37 @@ void client_function(const char* request, int CLIENTPORT) {
         FileStr* currFile = new FileStr();
         currFile->filepath = resolvedpath;
         currFile->filesize = filesize;
-        currFile->chunks = ceil(filesize / CHUNKSIZE);
+        currFile->chunks = ceil((double)filesize / CHUNKSIZE);
+        vector<bool> tempchunkpresent(ceil((double)filesize / CHUNKSIZE));
 
         string concatenatedSHA = "";
         long off = 0;
         long flsz = filesize;
         while (flsz > 0) {
-            string currsha = generateSHA(resolvedpath, off);
-            currFile->chunksha.push_back({off / CHUNKSIZE, currsha});
+            // string currsha = generateSHA(resolvedpath, off);
+            string currsha = "hello" + to_string(flsz);
+            currFile->chunksha.push_back(
+                {ceil((double)off / CHUNKSIZE), currsha});
+            tempchunkpresent[ceil((double)off / CHUNKSIZE)] = true;
             concatenatedSHA += currsha;
-            off += CHUNKSIZE;
             flsz -= CHUNKSIZE;
+            off += CHUNKSIZE;
         }
+
+        concatenatedSHA =
+            "68b41f1e817a0f2c20693c5aba6d8aab48919e652a300385b1e023f2d25ab97842"
+            "1799552b6fd8e71b1dd956a417ce614d934a4c023da7a1ebff335634cc197ac68e"
+            "dc7292bb843b77f29264879d147114f5d0dec6422e21f811604ce4b93d984f5187"
+            "76735eda98ca450ed9a8bddefc92aa273d06ada97e44ab1e080c08857d3f8d4fa5"
+            "a01d5076dbc32a86f5a8e4d2fdcc382cf13c190e7f8a2a2e90ef0abf9730f8a36e"
+            "cd68bc35947f67cf649771002712b3bfb195210869dbe9b807a395341c46ca07fd"
+            "99a9";
+        currFile->chunkpresent = tempchunkpresent;
+        currFile->SHA = concatenatedSHA;
 
         string preq = reqarr[0] + " " + resp + " " + reqarr[2] + " " +
                       concatenatedSHA + " " + to_string(filesize) + " " +
-                      currUser.userid + " " + "\n";
+                      currUser.userid + "\n";
 
         printf("%s\n", preq.c_str());
 
@@ -594,6 +632,7 @@ void client_function(const char* request, int CLIENTPORT) {
 
         if (resarr[0] == "2") {
             printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
+            filetomap.insert({resolvedpath, currFile});
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
@@ -640,7 +679,43 @@ void client_function(const char* request, int CLIENTPORT) {
                 clients.push_back(clientarr[i]);
             }
 
-            userschunkmapinfo(fullfilesha, clients, resp);
+            unordered_map<long, vector<string>> chunktomap;
+
+            userschunkmapinfo(chunktomap, clients, resp);
+
+            string destpath = reqarr[3].c_str();
+
+            vector<DownloadData*> pieceselection;
+            for (auto x : chunktomap) {
+                DownloadData* dd = new DownloadData();
+                dd->chunknumber = x.first;
+                dd->srcfilepath = resolvedpath;
+                dd->filesha = fullfilesha;
+                dd->peers = x.second;
+                dd->destfilepath = destpath;
+
+                pieceselection.push_back(dd);
+            }
+
+            sort(pieceselection.begin(), pieceselection.end(), cmp);
+
+            pthread_t th[DOWNLOAD_THREAD_POOL];
+            pthread_mutex_init(&mutexDownQueue, NULL);
+            pthread_cond_init(&condDownQueue, NULL);
+            for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+                check(pthread_create(&th[i], NULL, start_down_thread, NULL),
+                      "Failed to create the thread");
+            }
+
+            for (int i = 0; i < pieceselection.size(); i++) {
+                pthread_mutex_lock(&mutexDownQueue);
+                threadDownQueue.push(pieceselection[i]);
+                pthread_cond_signal(&condQueue);
+                pthread_mutex_unlock(&mutexDownQueue);
+            }
+
+            pthread_mutex_destroy(&mutexDownQueue);
+            pthread_cond_destroy(&condDownQueue);
 
         } else if (buffer[0] == '1') {
             vector<string> resarr;
@@ -714,6 +789,30 @@ void* start_thread(void* arg) {
     return NULL;
 }
 
+void* start_down_thread(void* arg) {
+    while (true) {
+        DownloadData* pclient;
+        pthread_mutex_lock(&mutexDownQueue);
+        if (threadDownQueue.empty()) {
+            pclient = NULL;
+            pthread_cond_wait(&condDownQueue, &mutexDownQueue);
+            if (!threadDownQueue.empty()) {
+                pclient = threadDownQueue.front();
+                threadDownQueue.pop();
+            }
+        } else {
+            pclient = threadDownQueue.front();
+            threadDownQueue.pop();
+        }
+        pthread_mutex_unlock(&mutexDownQueue);
+
+        if (pclient != NULL) {
+            downloadexec(pclient);
+        }
+    }
+    return NULL;
+}
+
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
@@ -741,41 +840,46 @@ void* handle_connection(void* arg) {
     }
 
     if (reqarr[0] == "getchunks") {
-        string res = "Hi message sent\n";
+
+        if (filetomap.find(reqarr[1]) == filetomap.end()) {
+            string res = "-1";
+            write(client_socket, res.c_str(), res.size());
+            return NULL;
+        }
+
+        auto currFile = filetomap[reqarr[1]];
+        string res = "1:";
+
+        for (long i = 0; i < currFile->chunkpresent.size(); i++) {
+            res += to_string(i) + " ";
+        }
         write(client_socket, res.c_str(), res.size());
+        return NULL;
+    } else if (reqarr[0] == "download") {
+        string filepath = reqarr[1];
+        int chunknumber = stoi(reqarr[2]);
+        long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
+
+        int fd = open(filepath.c_str(), O_RDONLY);
+        off64_t offset = chunknumber * CHUNKSIZE;
+        int filesize = CHUNKSIZE;
+        size_t readbytes;
+        char buff[BUFSIZ];
+        while ((readbytes = pread64(fd, buff, BUFSIZ, offset)) > 0 &&
+               filesize > 0 && totalfilesize > 0) {
+            write(client_socket, buff, readbytes);
+            offset += readbytes;
+            bzero(buff, BUFSIZ);
+            filesize -= readbytes;
+            totalfilesize -= readbytes;
+        }
+        close(fd);
         return NULL;
     } else {
         string res = "1:Invalid command\n";
         write(client_socket, res.c_str(), res.size());
         return NULL;
     }
-
-    // char resolvedpath[_POSIX_PATH_MAX];
-
-    // fflush(stdout);
-    // if (realpath(request, resolvedpath) == NULL) {
-    //     printf("ERROR: bad path %s\n", resolvedpath);
-    //     close(client_socket);
-    //     return NULL;
-    // }
-
-    // char buffer[BUFSIZ];
-
-    // FILE* fp = fopen(resolvedpath, "r");
-    // if (fp == NULL) {
-    //     printf("ERROR(open) %s\n", buffer);
-    //     close(client_socket);
-    //     return NULL;
-    // }
-
-    // while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
-    //     printf("Sending %ld bytes\n", bytes_read);
-    //     write(client_socket, buffer, bytes_read);
-    // }
-
-    // close(client_socket);
-    // fclose(fp);
-    // return NULL;
 }
 
 void recieved_file(string path, int server_socket) {
@@ -804,9 +908,8 @@ void recieved_file(string path, int server_socket) {
     printf("File Recieved Succesfully!\n");
 }
 
-vector<string> userschunkmapinfo(string& sha, vector<string>& clientarr,
-                                 string& filepath) {
-    vector<string> chunkdetails;
+void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
+                       vector<string>& clientarr, string& filepath) {
     for (int i = 0; i < clientarr.size(); i++) {
         vector<string> ipport;
         string curr = clientarr[i];
@@ -816,7 +919,7 @@ vector<string> userschunkmapinfo(string& sha, vector<string>& clientarr,
         int peerfd = socket(AF_INET, SOCK_STREAM, 0);
         if (peerfd < 0) {
             printf("Error: In opening socket\n");
-            return {};
+            return;
         }
 
         struct sockaddr_in peer_address;
@@ -827,11 +930,11 @@ vector<string> userschunkmapinfo(string& sha, vector<string>& clientarr,
         if (connect(peerfd, (struct sockaddr*)&peer_address,
                     sizeof(peer_address)) < 0) {
             printf("Error: In creating connection\n");
-            return {};
+            return;
         }
 
-        char buffer[256];
-        bzero(buffer, 256);
+        char buffer[BUFSIZ];
+        bzero(buffer, BUFSIZ);
 
         string req = "getchunks ";
         req += filepath + "\n";
@@ -840,49 +943,140 @@ vector<string> userschunkmapinfo(string& sha, vector<string>& clientarr,
         int n = write(peerfd, req.c_str(), req.size());
         if (n < 0) {
             printf("Couldn't send the request\n");
-            return {};
+            return;
         }
 
-        if (read(peerfd, buffer, 256) < 0) {
+        if (read(peerfd, buffer, BUFSIZ) < 0) {
             printf("Couldn't get response from the tracker\n");
-            return {};
+            return;
         }
+
+        vector<string> resarr;
         printf("%s\n", buffer);
         string res(buffer);
-        chunkdetails.push_back(res);
-    }
+        splitutility(res, ':', resarr);
 
-    return chunkdetails;
+        if (resarr[0] == "1") {
+            vector<string> chunkdetails;
+            splitutility(resarr[1], ' ', chunkdetails);
+
+            for (auto x : chunkdetails) {
+                if (x != "") {
+                    if (chunktomap.find(stol(x)) == chunktomap.end()) {
+                        chunktomap.insert({stol(x), {}});
+                    }
+                    chunktomap[stol(x)].push_back(curr);
+                }
+            }
+        }
+    }
 }
 
-string generateSHA(string filepath, long offset) {
-    char resolvedpath[_POSIX_PATH_MAX];
-    if (realpath(filepath.c_str(), resolvedpath) == NULL) {
-        printf("ERR: bad path %s\n", resolvedpath);
+void* downloadexec(void* arg) {
+    DownloadData chunkinfo = *(DownloadData*)arg;
+
+    vector<string> clientvec = chunkinfo.peers;
+    string fullfilesha = chunkinfo.filesha;
+    int noofclients = clientvec.size();
+    string filepath = chunkinfo.srcfilepath;
+    int chunknumber = chunkinfo.chunknumber;
+
+    string curr = clientvec[rand() % noofclients];
+    vector<string> ipport;
+    splitutility(curr, ':', ipport);
+    int port = stoi(ipport[1]);
+
+    int peerfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (peerfd < 0) {
+        printf("Error: In opening socket\n");
         return NULL;
     }
 
-    FILE* fd = fopen(resolvedpath, "rb");
-    char shabuf[SHA_DIGEST_LENGTH];
-    bzero(shabuf, sizeof(shabuf));
-    fseek(fd, offset, SEEK_SET);
-    fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+    struct sockaddr_in peer_address;
+    peer_address.sin_family = AF_INET;
+    peer_address.sin_addr.s_addr = INADDR_ANY;
+    peer_address.sin_port = htons(port);
 
-    unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
-    char buffer[SHA_DIGEST_LENGTH * 2];
-    int i;
-    bzero(buffer, sizeof(buffer));
-    bzero(SHA_Buffer, sizeof(SHA_Buffer));
-    SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
-
-    for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
-        sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+    if (connect(peerfd, (struct sockaddr*)&peer_address, sizeof(peer_address)) <
+        0) {
+        printf("Error: In creating connection\n");
+        return NULL;
     }
 
-    fclose(fd);
-    string shastr(buffer);
-    return shastr;
+    char buffer[BUFSIZ];
+    bzero(buffer, BUFSIZ);
+
+    string req = "download " + filepath + " " + to_string(chunknumber) + "\n";
+
+    cout << req << endl;
+
+    int n = write(peerfd, req.c_str(), req.size());
+    if (n < 0) {
+        printf("Couldn't send the request\n");
+        return NULL;
+    }
+
+    // if (read(peerfd, buffer, BUFSIZ) < 0) {
+    //     printf("Couldn't get response from the tracker\n");
+    //     return NULL;
+    // }
+
+    int fd = open(
+        "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
+        "learn/peer-to-peer/copied.txt",
+        O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    long totalfilesize = getfilesize(filepath) - (chunknumber * CHUNKSIZE);
+    int filesize = CHUNKSIZE;
+    loff_t offset = chunknumber * CHUNKSIZE;
+    ssize_t readbytes = 0;
+
+    while (totalfilesize > 0 && filesize > 0 &&
+           (readbytes = read(peerfd, buffer, BUFSIZ)) > 0) {
+        ssize_t written = pwrite64(fd, buffer, readbytes, offset);
+        offset += written;
+        // memset(buffer, 0, BUFSIZ);
+        filesize -= readbytes;
+        totalfilesize -= readbytes;
+    }
+
+    close(fd);
+    close(peerfd);
+
+    printf("Chunk %d downloaded successfully from %d", chunknumber, port);
+
+    return NULL;
+
+    // printf("%s\n", buffer);
 }
+
+// string generateSHA(string filepath, long offset) {
+//     char resolvedpath[_POSIX_PATH_MAX];
+//     if (realpath(filepath.c_str(), resolvedpath) == NULL) {
+//         printf("ERR: bad path %s\n", resolvedpath);
+//         return NULL;
+//     }
+
+//     FILE* fd = fopen(resolvedpath, "rb");
+//     char shabuf[SHA_DIGEST_LENGTH];
+//     bzero(shabuf, sizeof(shabuf));
+//     fseek(fd, offset, SEEK_SET);
+//     fread(shabuf, 1, SHA_DIGEST_LENGTH, fd);
+
+//     unsigned char SHA_Buffer[SHA_DIGEST_LENGTH];
+//     char buffer[SHA_DIGEST_LENGTH * 2];
+//     int i;
+//     bzero(buffer, sizeof(buffer));
+//     bzero(SHA_Buffer, sizeof(SHA_Buffer));
+//     SHA1((unsigned char*)shabuf, 20, SHA_Buffer);
+
+//     for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+//         sprintf((char*)&(buffer[i * 2]), "%02x", SHA_Buffer[i]);
+//     }
+
+//     fclose(fd);
+//     string shastr(buffer);
+//     return shastr;
+// }
 
 long getfilesize(string filename) {
     struct stat sbuf;
