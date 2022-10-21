@@ -39,6 +39,7 @@ struct DownloadData {
     string destfilepath;
     vector<string> peers;
     string filesha;
+    string groupid;
 
     DownloadData() {}
 };
@@ -48,6 +49,7 @@ struct DownloadPassThread {
     unordered_map<long, vector<string>> chunktomap;
     string srcfilepath;
     string filesha;
+    string groupid;
 };
 
 pthread_mutex_t mutexQueue;
@@ -712,6 +714,7 @@ void client_function(const char* request, int CLIENTPORT) {
             transferdata->destinationpath = reqarr[3];
             transferdata->filesha = fullfilesha;
             transferdata->srcfilepath = resolvedpath;
+            transferdata->groupid = reqarr[1];
 
             pthread_t download_thread;
             pthread_create(&download_thread, NULL, downloadstart, transferdata);
@@ -913,7 +916,6 @@ void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
 
         string req = "getchunks ";
         req += filepath + "\n";
-        cout << req << endl;
 
         int n = write(peerfd, req.c_str(), req.size());
         if (n < 0) {
@@ -1033,11 +1035,19 @@ void* downloadstart(void* arg) {
         dd->filesha = transferdata.filesha;
         dd->peers = x.second;
         dd->destfilepath = transferdata.destinationpath;
+        dd->groupid = transferdata.groupid;
 
         pieceselection.push_back(dd);
     }
 
     sort(pieceselection.begin(), pieceselection.end(), cmp);
+
+    DownloadData* chunkToSeed = pieceselection.back();
+    downloadexec(chunkToSeed);
+    pieceselection.pop_back();
+    string req = "upload_file " + chunkToSeed->srcfilepath + " " +
+                 chunkToSeed->groupid + "\n";
+    client_function(req.c_str(), connection_info.second);
 
     pthread_t th[DOWNLOAD_THREAD_POOL];
     pthread_mutex_init(&mutexDownQueue, NULL);
