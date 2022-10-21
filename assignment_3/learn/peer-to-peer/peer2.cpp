@@ -721,15 +721,17 @@ void client_function(const char* request, int CLIENTPORT) {
             pthread_t th[DOWNLOAD_THREAD_POOL];
             pthread_mutex_init(&mutexDownQueue, NULL);
             pthread_cond_init(&condDownQueue, NULL);
+            int breakcond = pieceselection.size();
             for (int i = 0; i < THREAD_POOL_SIZE; i++) {
-                check(pthread_create(&th[i], NULL, start_down_thread, NULL),
-                      "Failed to create the thread");
+                check(
+                    pthread_create(&th[i], NULL, start_down_thread, &breakcond),
+                    "Failed to create the thread");
             }
 
             for (int i = 0; i < pieceselection.size(); i++) {
                 pthread_mutex_lock(&mutexDownQueue);
                 threadDownQueue.push(pieceselection[i]);
-                pthread_cond_signal(&condQueue);
+                pthread_cond_signal(&condDownQueue);
                 pthread_mutex_unlock(&mutexDownQueue);
             }
 
@@ -823,6 +825,7 @@ void* start_thread(void* arg) {
 }
 
 void* start_down_thread(void* arg) {
+    int breakcond = *(int*)arg;
     while (true) {
         DownloadData* pclient;
         pthread_mutex_lock(&mutexDownQueue);
@@ -836,11 +839,15 @@ void* start_down_thread(void* arg) {
         } else {
             pclient = threadDownQueue.front();
             threadDownQueue.pop();
+            breakcond--;
         }
         pthread_mutex_unlock(&mutexDownQueue);
 
         if (pclient != NULL) {
             downloadexec(pclient);
+        }
+        if (breakcond <= 0) {
+            break;
         }
     }
     return NULL;
@@ -913,32 +920,6 @@ void* handle_connection(void* arg) {
         write(client_socket, res.c_str(), res.size());
         return NULL;
     }
-}
-
-void recieved_file(string path, int server_socket) {
-    /* Take source destination from the args and realpath */
-    char buff[BUFSIZ];
-    bzero(buff, BUFSIZ);
-
-    int d = open(path.c_str(), O_WRONLY | O_CREAT,
-                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-    if (d == -1) {
-        err("Destination file cannot be opened");
-        close(d);
-        return;
-    }
-
-    size_t size;
-    while ((size = read(server_socket, buff, BUFSIZ)) > 0) {
-        // sleep(1);
-        printf("Got %ld bytes\n", size);
-        write(d, buff, size);
-    }
-
-    close(d);
-
-    printf("File Recieved Succesfully!\n");
 }
 
 void userschunkmapinfo(unordered_map<long, vector<string>>& chunktomap,
