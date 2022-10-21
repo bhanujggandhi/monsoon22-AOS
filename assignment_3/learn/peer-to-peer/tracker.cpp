@@ -9,7 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define THREAD_POOL_SIZE 4
+#define THREAD_POOL_SIZE 8
 #define SERVERPORT 8084
 
 using namespace std;
@@ -18,7 +18,6 @@ struct User {
     string userid;
     string password;
     string address;
-    // unordered_set<string> files;
     unordered_set<string> mygroups;
     unordered_set<string> groups;
 };
@@ -38,6 +37,7 @@ struct FileStr {
 };
 
 // Globals
+pair<string, int> connectioninfo;
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
@@ -50,6 +50,7 @@ unordered_map<string, FileStr*> filetomap;
 void err(const char* msg);
 void check(int status, string msg);
 void splitutility(string str, char del, vector<string>& pth);
+void getipport(char* filepath, int number);
 void* server_function(void* arg);
 void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
@@ -57,9 +58,21 @@ void download_file(char* path, int client_socket);
 void* handle_connection(void* socket);
 
 int main(int argc, char* argv[]) {
-    // char* ipport = "127.0.0.1:8080";
+
+    if (argc != 3) {
+        cout << "USAGE: ./tracker <path-to-trackerinfo.txt> <tracker-number>"
+             << endl;
+        exit(1);
+    }
+
+    getipport(argv[1], stoi(argv[2]));
+    cout << "\x1B[2J\x1B[H";
+
+    printf("Connected to: %s on port %d\n", connectioninfo.first.c_str(),
+           connectioninfo.second);
+
     pthread_t server_thread;
-    pthread_create(&server_thread, NULL, server_function, (void*)argv[1]);
+    pthread_create(&server_thread, NULL, server_function, NULL);
 
     while (1) {
         char request[255];
@@ -102,14 +115,42 @@ void splitutility(string str, char del, vector<string>& pth) {
     pth.push_back(temp);
 }
 
-void* server_function(void* arg) {
-    // Parse IP:PORT
-    char* ipport = (char*)arg;
-    vector<string> ipportsplit;
-    string ipportstr(ipport);
-    splitutility(ipportstr, ':', ipportsplit);
+void getipport(char* filename, int number) {
+    char resolvedpath[_POSIX_PATH_MAX];
+    if (realpath(filename, resolvedpath) == NULL) {
+        printf("ERROR: bad path %s\n", resolvedpath);
+        exit(1);
+    }
 
-    int portno = stoi(ipportsplit[1]);
+    std::ifstream file(resolvedpath);
+    int num = number;
+    string ipport;
+    while (num--) {
+        if (file.is_open()) {
+            string line;
+            getline(file, line);
+            ipport = line;
+        } else {
+            printf("Cannot open the file!\n");
+            exit(1);
+        }
+    }
+    file.close();
+
+    vector<string> ipportsplit;
+    splitutility(ipport, ':', ipportsplit);
+    connectioninfo.first = ipportsplit[0];
+    connectioninfo.second = stoi(ipportsplit[1]);
+}
+
+void* server_function(void* arg) {
+    // // Parse IP:PORT
+    // char* ipport = (char*)arg;
+    // vector<string> ipportsplit;
+    // string ipportstr(ipport);
+    // splitutility(ipportstr, ':', ipportsplit);
+
+    int portno = connectioninfo.second;
 
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
@@ -120,8 +161,8 @@ void* server_function(void* arg) {
 
     // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
-    if (inet_pton(AF_INET, ipportsplit[0].c_str(), &server_addr.sin_addr) ==
-        0) {
+    if (inet_pton(AF_INET, connectioninfo.first.c_str(),
+                  &server_addr.sin_addr) == 0) {
         perror("Invalid IP");
         exit(1);
     }
@@ -250,36 +291,6 @@ void* start_thread(void* arg) {
         }
     }
     return NULL;
-}
-
-void download_file(char* path, int client_socket) {
-    char resolvedpath[_POSIX_PATH_MAX];
-    size_t bytes_read;
-
-    fflush(stdout);
-    if (realpath(path, resolvedpath) == NULL) {
-        printf("ERROR: bad path %s\n", resolvedpath);
-        close(client_socket);
-        return;
-    }
-
-    char buffer[BUFSIZ];
-
-    FILE* fp = fopen(resolvedpath, "r");
-    if (fp == NULL) {
-        printf("ERROR(open) %s\n", buffer);
-        close(client_socket);
-        return;
-    }
-
-    while ((bytes_read = fread(buffer, 1, BUFSIZ, fp)) > 0) {
-        printf("Sending %ld bytes\n", bytes_read);
-        write(client_socket, buffer, bytes_read);
-    }
-
-    close(client_socket);
-    fclose(fp);
-    return;
 }
 
 void* handle_connection(void* arg) {
