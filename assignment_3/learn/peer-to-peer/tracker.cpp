@@ -10,7 +10,6 @@
 #include <unistd.h>
 
 #define THREAD_POOL_SIZE 8
-#define SERVERPORT 8084
 
 using namespace std;
 
@@ -159,7 +158,6 @@ void* server_function(void* arg) {
     struct sockaddr_in server_addr;
     bzero((char*)&server_addr, sizeof(server_addr));
 
-    // int portno = SERVERPORT;
     server_addr.sin_family = AF_INET;
     if (inet_pton(AF_INET, connectioninfo.first.c_str(),
                   &server_addr.sin_addr) == 0) {
