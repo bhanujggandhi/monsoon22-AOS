@@ -345,14 +345,14 @@ void* handle_connection(void* arg) {
 
         if (password == usertomap[userid]->password) {
             loggedin_map[userid] = true;
+            auto currUser = usertomap[userid];
+            currUser->address = address;
             string res = "2:" + userid + ":User logged in successfully!\n";
             write(client_socket, res.c_str(), res.size());
             return NULL;
         }
 
         loggedin_map[userid] = false;
-        auto currUser = usertomap[userid];
-        currUser->address = address;
         string msg = "1:Password is incorrect, please try again\n";
         write(client_socket, msg.c_str(), msg.size());
         return NULL;

@@ -43,6 +43,13 @@ struct DownloadData {
     DownloadData() {}
 };
 
+struct DownloadPassThread {
+    string destinationpath;
+    unordered_map<long, vector<string>> chunktomap;
+    string srcfilepath;
+    string filesha;
+};
+
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 queue<int*> thread_queue;
@@ -70,6 +77,7 @@ void client_function(const char* request, int CLIENTPORT);
 void* start_thread(void* arg);
 void* start_down_thread(void* arg);
 void* handle_connection(void* socket);
+void* downloadstart(void* donwloadtransfer);
 
 int main(int argc, char* argv[]) {
     string str("127.0.0.1:2001");
@@ -683,41 +691,14 @@ void client_function(const char* request, int CLIENTPORT) {
 
             userschunkmapinfo(chunktomap, clients, resp);
 
-            string destpath = reqarr[3].c_str();
+            DownloadPassThread* transferdata = new DownloadPassThread();
+            transferdata->chunktomap = chunktomap;
+            transferdata->destinationpath = reqarr[3];
+            transferdata->filesha = fullfilesha;
+            transferdata->srcfilepath = resolvedpath;
 
-            vector<DownloadData*> pieceselection;
-            for (auto x : chunktomap) {
-                DownloadData* dd = new DownloadData();
-                dd->chunknumber = x.first;
-                dd->srcfilepath = resolvedpath;
-                dd->filesha = fullfilesha;
-                dd->peers = x.second;
-                dd->destfilepath = destpath;
-
-                pieceselection.push_back(dd);
-            }
-
-            sort(pieceselection.begin(), pieceselection.end(), cmp);
-
-            pthread_t th[DOWNLOAD_THREAD_POOL];
-            pthread_mutex_init(&mutexDownQueue, NULL);
-            pthread_cond_init(&condDownQueue, NULL);
-            int breakcond = pieceselection.size();
-            for (int i = 0; i < THREAD_POOL_SIZE; i++) {
-                check(
-                    pthread_create(&th[i], NULL, start_down_thread, &breakcond),
-                    "Failed to create the thread");
-            }
-
-            for (int i = 0; i < pieceselection.size(); i++) {
-                pthread_mutex_lock(&mutexDownQueue);
-                threadDownQueue.push(pieceselection[i]);
-                pthread_cond_signal(&condQueue);
-                pthread_mutex_unlock(&mutexDownQueue);
-            }
-
-            pthread_mutex_destroy(&mutexDownQueue);
-            pthread_cond_destroy(&condDownQueue);
+            pthread_t download_thread;
+            pthread_create(&download_thread, NULL, downloadstart, transferdata);
 
         } else if (buffer[0] == '1') {
             vector<string> resarr;
@@ -997,11 +978,6 @@ void* downloadexec(void* arg) {
         return NULL;
     }
 
-    // if (read(peerfd, buffer, BUFSIZ) < 0) {
-    //     printf("Couldn't get response from the tracker\n");
-    //     return NULL;
-    // }
-
     int fd = open(
         "/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_3/"
         "learn/peer-to-peer/copied.txt",
@@ -1023,11 +999,51 @@ void* downloadexec(void* arg) {
     close(fd);
     close(peerfd);
 
-    printf("Chunk %d downloaded successfully from %d", chunknumber, port);
+    printf("Chunk %d downloaded successfully from %d\n", chunknumber, port);
 
     return NULL;
 
     // printf("%s\n", buffer);
+}
+
+void* downloadstart(void* arg) {
+    DownloadPassThread transferdata = *(DownloadPassThread*)arg;
+
+    vector<DownloadData*> pieceselection;
+    for (auto x : transferdata.chunktomap) {
+        DownloadData* dd = new DownloadData();
+        dd->chunknumber = x.first;
+        dd->srcfilepath = transferdata.srcfilepath;
+        dd->filesha = transferdata.filesha;
+        dd->peers = x.second;
+        dd->destfilepath = transferdata.destinationpath;
+
+        pieceselection.push_back(dd);
+    }
+
+    sort(pieceselection.begin(), pieceselection.end(), cmp);
+
+    pthread_t th[DOWNLOAD_THREAD_POOL];
+    pthread_mutex_init(&mutexDownQueue, NULL);
+    pthread_cond_init(&condDownQueue, NULL);
+    int breakcond = pieceselection.size();
+    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+        check(pthread_create(&th[i], NULL, start_down_thread, &breakcond),
+              "Failed to create the thread");
+    }
+
+    for (int i = 0; i < pieceselection.size(); i++) {
+        pthread_mutex_lock(&mutexDownQueue);
+        threadDownQueue.push(pieceselection[i]);
+        pthread_cond_signal(&condDownQueue);
+        pthread_mutex_unlock(&mutexDownQueue);
+    }
+
+    pthread_mutex_destroy(&mutexDownQueue);
+    pthread_cond_destroy(&condDownQueue);
+
+    printf("Download Completed Successfully!\n");
+    return NULL;
 }
 
 // string generateSHA(string filepath, long offset) {
