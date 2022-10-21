@@ -60,7 +60,7 @@ pthread_mutex_t mutexDownQueue;
 pthread_cond_t condDownQueue;
 queue<DownloadData*> threadDownQueue;
 
-pair<string, int> connection_info = {"127.0.0.1", 8084};
+pair<string, int> connection_info;
 User currUser;
 unordered_map<string, FileStr*> filetomap;
 
@@ -82,19 +82,26 @@ void* handle_connection(void* socket);
 void* downloadstart(void* donwloadtransfer);
 
 int main(int argc, char* argv[]) {
-    string str("127.0.0.1:2002");
+
+    if (argc != 3) {
+        cout << "USAGE: ./client IP:PORT <path-to-trackerinfo.txt>" << endl;
+        exit(1);
+    }
+
+    connecttotracker(argv[2]);
+    string str(argv[1]);
     currUser.address = str;
     pthread_t server_thread;
     pthread_create(&server_thread, NULL, server_function, (void*)str.c_str());
 
-    // connecttotracker("tracker_info.txt");
     while (1) {
-        char request[255];
-        memset(request, 0, 255);
+        char request[BUFSIZ];
         fflush(stdin);
-        fgets(request, 255, stdin);
+        memset(request, 0, BUFSIZ);
+        fgets(request, BUFSIZ, stdin);
         vector<string> parsedReq;
         string req(request);
+        if (req.empty()) continue;
         int CLIENTPORT = connection_info.second;
         // int CLIENTPORT = 8081;
         if (CLIENTPORT == 0) continue;
@@ -212,7 +219,7 @@ void* server_function(void* arg) {
 }
 
 void connecttotracker(const char* filepath) {
-    char resolvedpath[_POSIX_PATH_MAX];
+    char resolvedpath[PATH_MAX];
     if (realpath(filepath, resolvedpath) == NULL) {
         printf("ERROR: bad path %s\n", resolvedpath);
         return;
@@ -221,14 +228,13 @@ void connecttotracker(const char* filepath) {
     std::ifstream file(resolvedpath);
     if (file.is_open()) {
         std::string line;
-        // int i = 1;
         while (std::getline(file, line)) {
             vector<string> ipport;
             splitutility(line, ':', ipport);
 
             int portno = stoi(ipport[1]);
             int server_socket;
-            if (server_socket = socket(AF_INET, SOCK_STREAM, 0) < 0) {
+            if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
                 printf("Error: Opening socket\n");
                 exit(1);
             }
@@ -245,6 +251,7 @@ void connecttotracker(const char* filepath) {
             if (connect(server_socket, (struct sockaddr*)&server_address,
                         sizeof(server_address)) < 0) {
                 printf("Could not connect\n");
+                close(server_socket);
                 continue;
             }
             connection_info.first = ipport[0];
@@ -252,6 +259,7 @@ void connecttotracker(const char* filepath) {
             printf("Connected successfully\n");
             file.close();
             close(server_socket);
+
             return;
         }
 
@@ -263,6 +271,7 @@ void connecttotracker(const char* filepath) {
 
 void client_function(const char* request, int CLIENTPORT) {
     int portno = CLIENTPORT;
+    cout << portno << endl;
     int server_socket;
     check(server_socket = socket(AF_INET, SOCK_STREAM, 0),
           "ERROR: Opening PORT");
@@ -597,7 +606,7 @@ void client_function(const char* request, int CLIENTPORT) {
         long filesize = getfilesize(reqarr[1]);
         string groupid = reqarr[2];
 
-        char resolvedpath[_POSIX_PATH_MAX];
+        char resolvedpath[PATH_MAX];
 
         if (realpath(reqarr[1].c_str(), resolvedpath) == NULL) {
             printf("ERROR: bad path %s\n", resolvedpath);
@@ -676,7 +685,7 @@ void client_function(const char* request, int CLIENTPORT) {
             return;
         }
 
-        char resolvedpath[_POSIX_PATH_MAX];
+        char resolvedpath[PATH_MAX];
         if (realpath(reqarr[2].c_str(), resolvedpath) == NULL) {
             printf("ERROR: bad path %s\n", resolvedpath);
             return;
@@ -820,8 +829,8 @@ void* start_down_thread(void* arg) {
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
-    char request[_POSIX_PATH_MAX];
-    bzero(request, _POSIX_PATH_MAX);
+    char request[BUFSIZ];
+    bzero(request, BUFSIZ);
 
     size_t bytes_read;
     int msgsize = 0;
@@ -1073,7 +1082,7 @@ void* downloadstart(void* arg) {
 }
 
 // string generateSHA(string filepath, long offset) {
-//     char resolvedpath[_POSIX_PATH_MAX];
+//     char resolvedpath[PATH_MAX];
 //     if (realpath(filepath.c_str(), resolvedpath) == NULL) {
 //         printf("ERR: bad path %s\n", resolvedpath);
 //         return NULL;
