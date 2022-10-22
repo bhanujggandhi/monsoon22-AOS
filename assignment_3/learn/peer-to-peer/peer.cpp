@@ -12,8 +12,7 @@
 #include <unistd.h>
 
 #define THREAD_POOL_SIZE 4
-#define DOWNLOAD_THREAD_POOL 20
-#define SERVERPORT 8082
+#define DOWNLOAD_THREAD_POOL 4
 #define CHUNKSIZE 524288
 
 using namespace std;
@@ -32,6 +31,8 @@ struct FileStr {
     long chunks = ceil(filesize / (long)BUFSIZ);
     vector<bool> chunkpresent;
     vector<pair<int, string>> chunksha;
+    bool uploaded = false;
+    bool downloading = false;
 };
 
 struct DownloadData {
@@ -214,6 +215,10 @@ void* server_function(void* arg) {
         thread_queue.push(pclient);
         pthread_cond_signal(&condQueue);
         pthread_mutex_unlock(&mutexQueue);
+    }
+
+    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+        pthread_cancel(th[i]);
     }
 
     shutdown(server_socket, SHUT_RDWR);
@@ -625,7 +630,11 @@ void client_function(const char* request, int CLIENTPORT) {
         currFile->filepath = resolvedpath;
         currFile->filesize = filesize;
         currFile->chunks = ceil((double)filesize / CHUNKSIZE);
-        vector<bool> tempchunkpresent(ceil((double)filesize / CHUNKSIZE));
+
+        vector<bool> tempchunkpresent(currFile->chunks, false);
+        for (int i = 0; i < currFile->chunks; i++) {
+            tempchunkpresent.push_back(false);
+        }
 
         string concatenatedSHA = "";
         long off = 0;
@@ -673,7 +682,17 @@ void client_function(const char* request, int CLIENTPORT) {
 
         if (resarr[0] == "2") {
             printf("[%s]: %s\n", resarr[1].c_str(), resarr[2].c_str());
-            filetomap.insert({filenamevec.back(), currFile});
+            currFile->uploaded = true;
+            if (filetomap.find(filenamevec.back()) != filetomap.end()) {
+                string fname = filenamevec.back();
+                filetomap[fname] = currFile;
+            } else {
+                string fname = filenamevec.back();
+
+                filetomap.insert({fname, currFile});
+
+                auto temp = filetomap[fname];
+            }
         } else if (resarr[0] == "1") {
             printf("%s\n", resarr[1].c_str());
         }
@@ -733,7 +752,9 @@ void client_function(const char* request, int CLIENTPORT) {
             pthread_t download_thread;
             pthread_create(&download_thread, NULL, downloadstart, transferdata);
 
-            downloadstart(transferdata);
+            // downloadstart(transferdata);
+
+            pthread_cancel(download_thread);
 
         } else if (buffer[0] == '1') {
             vector<string> resarr;
@@ -824,7 +845,7 @@ void* start_down_thread(void* arg) {
         pthread_mutex_unlock(&mutexDownQueue);
 
         if (pclient != NULL) {
-            downloadexec(pclient);
+            // downloadexec(pclient);
         }
         if (breakcond <= 0) {
             break;
@@ -870,8 +891,13 @@ void* handle_connection(void* arg) {
         auto currFile = filetomap[reqarr[1]];
         string res = "1:";
 
-        for (long i = 0; i < currFile->chunkpresent.size(); i++) {
-            res += to_string(i) + " ";
+        unordered_map<int, string> chunktomap;
+        for (long i = 0; i < currFile->chunksha.size(); i++) {
+            chunktomap.insert(
+                {currFile->chunksha[i].first, currFile->chunksha[i].second});
+        }
+        for (auto x : chunktomap) {
+            res += to_string(x.first) + " ";
         }
         write(client_socket, res.c_str(), res.size());
         return NULL;
@@ -1065,10 +1091,13 @@ void* downloadexec(void* arg) {
 
         if (currFile) {
             auto vec = currFile->chunkpresent;
-            if (vec.empty()) {
-                long filesz = getfilesize(filepath);
-                long noofchunks = ceil((double)filesz / CHUNKSIZE);
+            long filesz = getfilesize(filepath);
+            long noofchunks = ceil((double)filesz / CHUNKSIZE);
+            if (vec.size() < noofchunks) {
                 vector<bool> temp(noofchunks, false);
+                for (int i = 0; i < vec.size(); i++) {
+                    temp[i] = vec[i];
+                }
                 temp[chunknumber] = true;
                 currFile->chunkpresent = temp;
             } else {
@@ -1079,9 +1108,10 @@ void* downloadexec(void* arg) {
         string gensha = generateSHA(destpath, CHUNKSIZE * chunknumber);
 
         // string gensha = "hello";
-        if (gensha != shadecode[0]) {
-            printf("SHA didn't match\n");
-        }
+        // if (gensha != shadecode[0]) {
+        //     printf("SHA didn't match\n");
+        //     continue;
+        // }
         if (currFile) currFile->chunksha.push_back({chunknumber, gensha});
 
         close(fd);
@@ -1114,9 +1144,14 @@ void* downloadstart(void* arg) {
 
     sort(pieceselection.begin(), pieceselection.end(), cmp);
 
-    DownloadData* chunkToSeed = pieceselection.back();
+    long i = 0;
+    for (; i < pieceselection.size(); i++) {
+        auto temp = pieceselection[i];
+        if (temp->chunknumber == 0) break;
+    }
+    DownloadData* chunkToSeed = pieceselection[i];
     downloadexec(chunkToSeed);
-    pieceselection.pop_back();
+    pieceselection.erase(pieceselection.begin() + i);
     if (chunkToSeed->destfilepath.back() == '/') {
         chunkToSeed->destfilepath.pop_back();
     }
@@ -1124,27 +1159,38 @@ void* downloadstart(void* arg) {
                  transferdata.filename + " " + chunkToSeed->groupid + "\n";
     client_function(req.c_str(), connection_info.second);
 
+    auto curr = filetomap[transferdata.filename];
+    if (!curr) {
+        return NULL;
+    }
+    curr->downloading = true;
+
     pthread_t th[DOWNLOAD_THREAD_POOL];
     pthread_mutex_init(&mutexDownQueue, NULL);
     pthread_cond_init(&condDownQueue, NULL);
     int breakcond = pieceselection.size();
-    for (int i = 0; i < THREAD_POOL_SIZE; i++) {
+    for (int i = 0; i < DOWNLOAD_THREAD_POOL; i++) {
         check(pthread_create(&th[i], NULL, start_down_thread, &breakcond),
               "Failed to create the thread");
     }
 
     for (int i = 0; i < pieceselection.size(); i++) {
-        pthread_mutex_lock(&mutexDownQueue);
-        threadDownQueue.push(pieceselection[i]);
-        pthread_cond_signal(&condDownQueue);
-        pthread_mutex_unlock(&mutexDownQueue);
+        // pthread_mutex_lock(&mutexDownQueue);
+        // threadDownQueue.push(pieceselection[i]);
+        // pthread_cond_signal(&condDownQueue);
+        // pthread_mutex_unlock(&mutexDownQueue);
         downloadexec(pieceselection[i]);
     }
+
+    // for (int i = 0; i < DOWNLOAD_THREAD_POOL; i++) {
+    //     pthread_join(th[i], NULL);
+    // }
 
     pthread_mutex_destroy(&mutexDownQueue);
     pthread_cond_destroy(&condDownQueue);
 
     printf("Download Completed Successfully!\n");
+    curr->downloading = false;
     return NULL;
 }
 

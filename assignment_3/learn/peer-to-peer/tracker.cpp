@@ -665,13 +665,13 @@ void* handle_connection(void* arg) {
 
         if (filetomap.find(filename) != filetomap.end()) {
             auto currFile = filetomap[filename];
-            if (currFile->SHA != sha) {
-                string msg =
-                    "1:Group has already a different file with same file name! "
-                    "Please choose a unique file name!\n";
-                write(client_socket, msg.c_str(), msg.size());
-                return NULL;
-            }
+            // if (currFile->SHA != sha) {
+            //     string msg =
+            //         "1:Group has already a different file with same file
+            //         name! " "Please choose a unique file name!\n";
+            //     write(client_socket, msg.c_str(), msg.size());
+            //     return NULL;
+            // }
 
             currFile->userids.insert(userid);
             currFile->users.insert(usertomap[userid]->address);
