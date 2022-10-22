@@ -9,7 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define THREAD_POOL_SIZE 8
+#define THREAD_POOL_SIZE 4
 
 using namespace std;
 
