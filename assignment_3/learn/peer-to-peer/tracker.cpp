@@ -294,8 +294,8 @@ void* start_thread(void* arg) {
 void* handle_connection(void* arg) {
     int client_socket = *(int*)arg;
     free(arg);
-    char request[2000000];
-    bzero(request, 2000000);
+    char request[BUFSIZ];
+    bzero(request, BUFSIZ);
 
     size_t bytes_read;
     int req_size = 0;
@@ -303,7 +303,7 @@ void* handle_connection(void* arg) {
     while ((bytes_read = read(client_socket, request + req_size,
                               sizeof(request) - req_size - 1)) > 0) {
         req_size += bytes_read;
-        if (req_size > 2000000 - 1 or request[req_size - 1] == '\n') break;
+        if (req_size > BUFSIZ - 1 or request[req_size - 1] == '\n') break;
     }
     check(bytes_read, "recv error");
     request[req_size - 1] = 0;
