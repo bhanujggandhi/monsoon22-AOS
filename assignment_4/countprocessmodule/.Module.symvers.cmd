@@ -1,0 +1,1 @@
+cmd_/mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_4/countprocessmodule/Module.symvers := sed 's/ko$$/o/' /mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_4/countprocessmodule/modules.order | scripts/mod/modpost    -o /mnt/LINUXDATA/bhanujggandhi/Learning/iiit/sem1/aos/assignment_4/countprocessmodule/Module.symvers -e -i Module.symvers   -T -
